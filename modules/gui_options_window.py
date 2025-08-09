@@ -139,8 +139,12 @@ def create_and_show_options_window(cfg: Config, on_quit: Callable[[], None]):
     button_bar = QtWidgets.QHBoxLayout()
     quit_btn = QtWidgets.QPushButton('Quit')
     def _quit():
-        on_quit()
-        window.close()
+        reply = QtWidgets.QMessageBox.question(window, 'Quit Auto-Unzip', 'Are you sure you want to quit?',
+                                               QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No,
+                                               QtWidgets.QMessageBox.StandardButton.No)
+        if reply == QtWidgets.QMessageBox.StandardButton.Yes:
+            on_quit()
+            window.close()
     quit_btn.clicked.connect(_quit)  # type: ignore
     button_bar.addStretch(1)
     button_bar.addWidget(quit_btn)

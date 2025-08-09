@@ -20,8 +20,9 @@ except ImportError:  # pragma: no cover
     ImageDraw = None  # type: ignore
 
 class TrayController:
-    def __init__(self, open_options: Callable[[], None]):
+    def __init__(self, open_options: Callable[[], None], request_quit: Optional[Callable[[], None]] = None):
         self.open_options = open_options
+        self.request_quit = request_quit  # schedule a quit (UI thread will confirm)
         self._icon: Any = None
         self._thread: Optional[threading.Thread] = None
         self._action_queue: "queue.Queue[Callable[[], None]]" = queue.Queue()
@@ -47,7 +48,14 @@ class TrayController:
         )
 
     def _quit(self, icon=None, item=None):  # pragma: no cover
-        try:
+        # Defer to request_quit so UI thread can show confirmation dialog
+        if self.request_quit:
+            try:
+                self.request_quit()
+                return
+            except Exception:
+                pass
+        try:  # fallback direct exit
             import sys
             sys.exit(0)
         except Exception:

@@ -11,6 +11,15 @@ from .config_settings_file_path import get_settings_file_path
 from .config_save_config import save_config
 
 def load_config() -> Config:
+    """Load configuration, creating or repairing as needed.
+
+    Side-effects:
+        - If the settings file did not exist and is created now, sets
+          transient attribute _was_new = True on the returned Config.
+        - If the settings file existed but was corrupt and got repaired,
+          sets transient attribute _was_repaired = True.
+    These attributes are NOT persisted; they exist only for the current run.
+    """
     path = get_settings_file_path()
     if os.path.isfile(path):
         try:
@@ -18,11 +27,12 @@ def load_config() -> Config:
                 data = json.load(f)
             return Config(**data)
         except Exception:
-            # Corrupt file: overwrite with defaults
             cfg = Config()
             save_config(cfg)
+            setattr(cfg, '_was_repaired', True)
             return cfg
-    # First launch: create file with defaults
+    # First launch: create file with defaults and mark
     cfg = Config()
     save_config(cfg)
+    setattr(cfg, '_was_new', True)
     return cfg
