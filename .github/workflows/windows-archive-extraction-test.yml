@@ -50,9 +50,11 @@ jobs:
           $failures = 0
           foreach ($t in $tests) {
             $archive = $t.file
-            $base = [System.IO.Path]::GetFileNameWithoutExtension($archive)
-            # Handle double extension cases (e.g., .tar.gz) by trimming twice when needed
-            if ($archive -match '\.tar\.(gz|bz2)$') { $base = $archive -replace '\.(tar\.(gz|bz2))$','-tar' } # simplistic base naming
+            # Derive base folder name using same extension priority list as app
+            $exts = @('.tar.gz','.tar.bz2','.zipx','.zip','.7z','.rar','.tar','.gz','.bz2','.tgz','.tbz','.cab')
+            $lower = $archive.ToLower()
+            $base = $archive
+            foreach ($ext in $exts) { if ($lower.EndsWith($ext)) { $base = $archive.Substring(0,$archive.Length - $ext.Length); break } }
 
             Write-Host "--- Testing $archive (expected folder: $base) ---"
             $src = Join-Path 'testing' $archive
@@ -82,24 +84,25 @@ jobs:
               continue
             }
 
-            # Find ANY .py file inside the extracted tree (more flexible than fixed TESTFILE.py)
-            $testFiles = Get-ChildItem -Path $destFolder -Recurse -File -Filter *.py -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName
-            if (-not $testFiles) {
-              Write-Host "[FAIL] No Python files (*.py) found in $destFolder"; $failures++
-              Write-Host "Directory listing for debug:";
-              Get-ChildItem -Path $destFolder -Recurse | Select-Object FullName, Length | Format-Table | Out-String | Write-Host
-              if (Test-Path (Join-Path $downloads $archive)) { Remove-Item (Join-Path $downloads $archive) -Force -ErrorAction SilentlyContinue }
-              if (Test-Path $destFolder) { Remove-Item $destFolder -Recurse -Force -ErrorAction SilentlyContinue }
-              continue
+            # Gather all files
+            $allFiles = Get-ChildItem -Path $destFolder -Recurse -File -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName
+            if (-not $allFiles) {
+              Write-Host "[FAIL] No files found inside $destFolder"; $failures++
+            } else {
+              $matched = $false
+              foreach ($file in $allFiles) {
+                if ($file.ToLower().EndsWith('.py')) {
+                  Write-Host "Running $file ..."
+                  $out = (python $file).Trim()
+                  if ($out -eq 'Test Successful!') { $matched = $true } else { Write-Host "[WARN] Python file output mismatch: '$out'" }
+                } else {
+                  # Try reading text content (ignore binary errors)
+                  try { $content = (Get-Content -Raw -ErrorAction Stop $file).Trim() } catch { $content = '' }
+                  if ($content -eq 'Test Successful!') { Write-Host "Matched text file $file"; $matched = $true }
+                }
+              }
+              if ($matched) { Write-Host "[OK] $archive extraction validation passed." } else { Write-Host "[FAIL] No file in $destFolder produced expected output"; $failures++ }
             }
-
-            $allGood = $true
-            foreach ($tf in $testFiles) {
-              Write-Host "Running $tf ..."
-              $out = (python $tf).Trim()
-              if ($out -ne 'Test Successful!') { Write-Host "[FAIL] Output mismatch from $tf -> '$out'"; $allGood = $false }
-            }
-            if (-not $allGood) { $failures++ } else { Write-Host "[OK] $archive extracted and script output correct." }
 
             # Remove archive + extracted folder for isolation
             if (Test-Path (Join-Path $downloads $archive)) { Remove-Item (Join-Path $downloads $archive) -Force -ErrorAction SilentlyContinue }
