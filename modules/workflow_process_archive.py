@@ -15,7 +15,14 @@ from .notifications_show_completion import show_completion_toast
 
 def process_archive(archive_path: str, cfg: Config) -> None:
     archive_name = os.path.basename(archive_path)
-    target_dir = os.path.join(os.path.dirname(archive_path), os.path.splitext(archive_name)[0])
+    # Remove all known archive extensions for folder naming
+    _exts = ['.tar.gz', '.tar.bz2', '.zipx', '.zip', '.7z', '.rar', '.tar', '.gz', '.bz2', '.tgz', '.tbz', '.cab']
+    base = archive_name
+    for ext in sorted(_exts, key=len, reverse=True):
+        if base.lower().endswith(ext):
+            base = base[: -len(ext)]
+            break
+    target_dir = os.path.join(os.path.dirname(archive_path), base)
     os.makedirs(target_dir, exist_ok=True)
 
     def _progress(p: float):
