@@ -27,27 +27,55 @@ from modules.qt_event_loop import integrate_qt_loop
 
 
 class RestartHandler(FileSystemEventHandler):
-    def __init__(self, script_path: str, min_interval: float = 2.0):
+    """Debounced project file change restarter.
+
+    Watches for modifications to .py / .pyw files under the project root.
+    Ignores changes in temporary / runtime folders (e.g. __pycache__).
+    On first qualifying change after the debounce window, re-execs the process.
+    """
+    def __init__(self, project_root: str, min_interval: float = 1.5):
         super().__init__()
-        self.script_path = os.path.abspath(script_path)
+        self.project_root = os.path.abspath(project_root)
         self.min_interval = min_interval
         self._last_restart = 0.0
+        self._pending = False
 
-    def on_modified(self, event):
+    def _should_consider(self, path: str) -> bool:
+        if not path.endswith(('.py', '.pyw')):
+            return False
+        # ignore __pycache__ or hidden
+        parts = path.lower().split(os.sep)
+        if '__pycache__' in parts:
+            return False
+        return True
+
+    def on_modified(self, event):  # pragma: no cover
         try:
             changed = os.path.abspath(event.src_path)
         except Exception:
             return
-        # Only act if the main script file itself changed
-        if os.path.normcase(changed) != os.path.normcase(self.script_path):
+        if not self._should_consider(changed):
             return
         now = time.time()
         if now - self._last_restart < self.min_interval:
+            # debounce; mark pending but do not restart yet
+            self._pending = True
             return
-        self._last_restart = now
+        self._trigger_restart(changed)
+
+    def _trigger_restart(self, changed: str):
+        self._last_restart = time.time()
+        self._pending = False
         print(f'[Auto-Unzip] Source changed ({changed}), restarting...')
-        script = self.script_path
-        os.execv(sys.executable, [sys.executable, script] + sys.argv[1:])
+        script = os.path.abspath(sys.argv[0])
+        try:
+            os.execv(sys.executable, [sys.executable, script] + sys.argv[1:])
+        except Exception as e:
+            print(f'[Auto-Unzip] Restart failed: {e}')
+
+    def poll(self):  # periodic check if a pending restart can now occur
+        if self._pending and (time.time() - self._last_restart) >= self.min_interval:
+            self._trigger_restart('pending-change')
 
 def main():
     # Load config once on main thread so all components share the same instance
@@ -60,14 +88,19 @@ def main():
         show_startup_toast()
         watcher = DirectoryWatcher(lambda: cfg.watch_folders, lambda p: process_archive(p, cfg), cfg.poll_interval_seconds)
         watcher.start()
-        event_handler = RestartHandler(script_path=sys.argv[0])
+        project_root = os.path.dirname(os.path.abspath(__file__))
+        event_handler = RestartHandler(project_root=project_root)
         observer = Observer()
-        observer.schedule(event_handler, path=os.path.dirname(__file__), recursive=True)
+        observer.schedule(event_handler, path=project_root, recursive=True)
         observer.start()
         _install_signals(watcher)
         try:
             while True:
                 time.sleep(0.5)
+                try:
+                    event_handler.poll()
+                except Exception:
+                    pass
         except KeyboardInterrupt:
             pass
         finally:
