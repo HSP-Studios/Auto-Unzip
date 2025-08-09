@@ -18,6 +18,7 @@ from modules.notifications_show_startup import show_startup_toast
 from modules.workflow_process_archive import process_archive
 from modules.watcher_directory_watcher import DirectoryWatcher
 from modules.tray_tray_controller import TrayController
+from modules.gui_options_window import create_and_show_options_window
 
 
 
@@ -33,11 +34,10 @@ def main():
     cfg = load_config()
     show_startup_toast()
 
-    tray_controller = TrayController(
-        get_folders=lambda: cfg.watch_folders,
-        add_folder=lambda p: _add_folder(p, cfg),
-        on_quit=_graceful_exit
-    )
+    def _open_options():
+        create_and_show_options_window(cfg, _graceful_exit)
+
+    tray_controller = TrayController(open_options=_open_options)
     tray_controller.start()
 
     watcher = DirectoryWatcher(lambda: cfg.watch_folders, lambda p: process_archive(p, cfg), cfg.poll_interval_seconds)
