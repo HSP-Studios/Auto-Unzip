@@ -208,3 +208,4 @@ __marimo__/
 
 # Config runtime file (moved to config directory)
 settings.json
+config/auto_unzip.pid
