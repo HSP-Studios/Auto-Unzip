@@ -106,5 +106,14 @@ def create_and_show_options_window(cfg: Config, on_quit: Callable[[], None]):
     layout.addLayout(button_bar)
 
     window.show()
+    window.raise_()
+    window.activateWindow()
+    try:
+        # For Windows specifically, ensure focus
+        window.setWindowState(window.windowState() & ~QtCore.Qt.WindowState.WindowMinimized | QtCore.Qt.WindowState.WindowActive)
+    except Exception:
+        pass
+    print('[Debug][OptionsWindow] Shown options window; thread:', QtCore.QThread.currentThread())
     _window_ref = window
     app.processEvents()
+    print('[Debug][OptionsWindow] processEvents completed')

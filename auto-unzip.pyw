@@ -67,7 +67,20 @@ def main():
     try:
         from PyQt6 import QtCore  # type: ignore
         print('[Debug] Qt available; scheduling tray init on main thread')
+        cfg_ready_flag = threading.Event()
+        # Poll for config readiness from main thread without blocking event loop
+        def _mark_ready():
+            if 'cfg' in cfg_holder:
+                cfg_ready_flag.set()
+            else:
+                QtCore.QTimer.singleShot(50, _mark_ready)
+        QtCore.QTimer.singleShot(0, _mark_ready)
+
         def init_tray():  # runs on Qt main thread
+            if not cfg_ready_flag.is_set():
+                # Reschedule until config loaded to avoid duplicate config objects
+                QtCore.QTimer.singleShot(50, init_tray)
+                return
             print('[Debug] init_tray running on thread', threading.current_thread().name)
             cfg = cfg_holder.get('cfg') or load_config()
             print('[Debug] init_tray using cfg id:', id(cfg))
