@@ -225,13 +225,23 @@ def _perform_exec_restart():
     and ensures the working directory is the script's directory to avoid edge
     cases where Python mis-resolves the script when paths contain spaces.
     """
-    script_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
+    script_path = os.path.abspath(sys.argv[0])
+    script_dir = os.path.dirname(script_path)
     try:
         os.chdir(script_dir)
     except Exception:
-        pass  # non-fatal
-    # Args for execv: first element is program (interpreter), followed by original argv
-    argv = [sys.executable] + sys.argv
+        pass
+    # Some Windows launches of .pyw can confuse re-exec with spaces; fall back to runpy.
+    # We'll exec: python -c "import runpy, sys; sys.argv=<orig_argv_repr>; runpy.run_path('<script_path>', run_name='__main__')"
+    import shlex
+    orig_argv = sys.argv[:]
+    # Build small launcher code
+    launcher = (
+        "import runpy, sys; "
+        f"sys.argv={orig_argv!r}; "
+        f"runpy.run_path(r'{script_path}', run_name='__main__')"
+    )
+    argv = [sys.executable, '-c', launcher]
     os.execv(sys.executable, argv)
 
 
