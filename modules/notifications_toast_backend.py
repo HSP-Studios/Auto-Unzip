@@ -1,35 +1,35 @@
 """
 notifications_toast_backend.py
-------------------------------
-Provides a cross-platform best-effort toast notification helper. On Windows it
-uses win10toast if available, else falls back to print. For simplicity and to
-avoid extra dependencies, we attempt dynamic import.
+--------------------------------
+Provides a minimal abstraction for showing toast notifications on Windows.
+Uses win10toast if installed; otherwise falls back to printing to console.
+All higher-level notification helper functions should import show_toast()
+from this module so implementation can be swapped or enhanced easily.
 """
+
 from __future__ import annotations
+import threading
 
-try:
-    from win10toast import ToastNotifier  # type: ignore
+_toast_lock = threading.Lock()
+
+try:  # pragma: no cover - optional dependency
+	from win10toast import ToastNotifier  # type: ignore
+	_notifier = ToastNotifier()
 except Exception:  # pragma: no cover
-    ToastNotifier = None  # type: ignore
-
-_notifier = None
-
-def _get_notifier():
-    global _notifier
-    if _notifier is None and ToastNotifier:
-        try:
-            _notifier = ToastNotifier()
-        except Exception:
-            _notifier = False
-    return _notifier
+	_notifier = None  # type: ignore
 
 
-def show_toast(title: str, msg: str, duration: float = 3.0):
-    n = _get_notifier()
-    if n:
-        try:
-            n.show_toast(title, msg, duration=duration, threaded=True)
-            return
-        except Exception:
-            pass
-    print(f"[Auto-Unzip] {title}: {msg}")
+def show_toast(title: str, msg: str, duration: int = 5) -> None:
+	"""Thread-safe toast display.
+
+	Falls back to console printing if toast backend unavailable.
+	"""
+	with _toast_lock:
+		if _notifier is not None:  # pragma: no cover - GUI interaction
+			try:
+				_notifier.show_toast(title, msg, duration=duration, threaded=True)
+				return
+			except Exception:
+				pass
+		print(f"[Auto-Unzip] {title}: {msg}")
+
