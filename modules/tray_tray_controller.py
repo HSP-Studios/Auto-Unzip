@@ -20,8 +20,9 @@ except ImportError:  # pragma: no cover
     ImageDraw = None  # type: ignore
 
 class TrayController:
-    def __init__(self, open_options: Callable[[], None]):
+    def __init__(self, open_options: Callable[[], None], request_quit: Optional[Callable[[], None]] = None):
         self.open_options = open_options
+        self.request_quit = request_quit  # schedule a quit (UI thread will confirm)
         self._icon: Any = None
         self._thread: Optional[threading.Thread] = None
         self._action_queue: "queue.Queue[Callable[[], None]]" = queue.Queue()
@@ -42,12 +43,30 @@ class TrayController:
         if not pystray:
             return None
         return pystray.Menu(
-            pystray.MenuItem('Options', self._open_options)
+            pystray.MenuItem('Options', self._open_options, default=True),
+            pystray.MenuItem('Quit', self._quit)
         )
 
+    def _quit(self, icon=None, item=None):  # pragma: no cover
+        # Defer to request_quit so UI thread can show confirmation dialog
+        if self.request_quit:
+            try:
+                self.request_quit()
+                return
+            except Exception:
+                pass
+        try:  # fallback direct exit
+            import sys
+            sys.exit(0)
+        except Exception:
+            pass
+
     def _open_options(self, icon=None, item=None):  # pragma: no cover
-        # Dispatch to main thread via queue to avoid GUI creation from tray thread
-        self._action_queue.put(self.open_options)
+        # open_options now enqueues UI work itself; just call it
+        try:
+            self.open_options()
+        except Exception:
+            self._action_queue.put(self.open_options)
 
     def start(self):  # pragma: no cover
         if not pystray:
@@ -57,16 +76,14 @@ class TrayController:
             return
         image = self._create_image()
         self._icon = pystray.Icon('auto_unzip', image, 'Auto-Unzip', self._build_menu())
-        # Always run in dedicated thread to maintain lifetime
-        self._thread = threading.Thread(target=self._icon.run, daemon=True)
+        self._thread = threading.Thread(target=self._icon.run, daemon=True, name='TrayIconThread')
         self._thread.start()
-        # Wait briefly for icon to appear
-        for _ in range(10):
+        for _ in range(10):  # brief wait for visibility
             if getattr(self._icon, 'visible', False):
                 break
             time.sleep(0.1)
         self._running = True
-        t = threading.Thread(target=self._pump_actions, daemon=True)
+        t = threading.Thread(target=self._pump_actions, daemon=True, name='TrayActionPump')
         t.start()
 
     def _pump_actions(self):  # pragma: no cover

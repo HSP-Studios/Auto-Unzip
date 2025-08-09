@@ -26,9 +26,25 @@ def create_and_show_options_window(cfg: Config, on_quit: Callable[[], None]):
         print('[Auto-Unzip] PyQt6 not installed. Install with pip install PyQt6.')
         return
 
+    # If window already exists just raise and focus it
+    if _window_ref is not None:
+        try:
+            _window_ref.show()
+            _window_ref.raise_()
+            _window_ref.activateWindow()
+        except Exception:
+            pass
+        return
+
     app = QtWidgets.QApplication.instance() or QtWidgets.QApplication(sys.argv)
 
-    window = QtWidgets.QWidget()
+    class OptionsWindow(QtWidgets.QWidget):
+        def closeEvent(self, event):  # type: ignore
+            # Just hide; do not quit app. User can reopen from tray.
+            self.hide()
+            event.ignore()
+
+    window = OptionsWindow()
     window.setWindowTitle('Auto-Unzip Options')
     window.setFixedSize(700, 500)
 
@@ -64,9 +80,11 @@ def create_and_show_options_window(cfg: Config, on_quit: Callable[[], None]):
 
     # Watched folders list
     folders_list = QtWidgets.QListWidget()
+    folders_list.setSelectionMode(QtWidgets.QAbstractItemView.SelectionMode.ExtendedSelection)  # allow multi-select
     for f in cfg.watch_folders:
         folders_list.addItem(f)
     add_btn = QtWidgets.QPushButton('Add Folder')
+    remove_btn = QtWidgets.QPushButton('Remove Selected')
     def _add_folder():
         dlg = QtWidgets.QFileDialog(window)
         dlg.setFileMode(QtWidgets.QFileDialog.FileMode.Directory)  # type: ignore
@@ -78,9 +96,32 @@ def create_and_show_options_window(cfg: Config, on_quit: Callable[[], None]):
                     cfg.watch_folders.append(path)
                     folders_list.addItem(path)
                     save_config(cfg)
+    def _remove_selected():
+        # Collect selected items first (can't modify while iterating selection)
+        selected = list(folders_list.selectedItems())
+        if not selected:
+            return
+        removed_any = False
+        for item in selected:
+            path = item.text()
+            if path in cfg.watch_folders:
+                try:
+                    cfg.watch_folders.remove(path)
+                except ValueError:
+                    pass
+                row = folders_list.row(item)
+                folders_list.takeItem(row)
+                removed_any = True
+        if removed_any:
+            save_config(cfg)
+    remove_btn.clicked.connect(_remove_selected)  # type: ignore
     add_btn.clicked.connect(_add_folder)  # type: ignore
     general_layout.addRow('Watched Folders:', folders_list)
-    general_layout.addRow(add_btn)
+    btn_row = QtWidgets.QHBoxLayout()
+    btn_row.addWidget(add_btn)
+    btn_row.addWidget(remove_btn)
+    btn_row.addStretch(1)
+    general_layout.addRow(btn_row)
 
     inner_layout.addWidget(general_group)
 
@@ -98,13 +139,24 @@ def create_and_show_options_window(cfg: Config, on_quit: Callable[[], None]):
     button_bar = QtWidgets.QHBoxLayout()
     quit_btn = QtWidgets.QPushButton('Quit')
     def _quit():
-        on_quit()
-        window.close()
+        reply = QtWidgets.QMessageBox.question(window, 'Quit Auto-Unzip', 'Are you sure you want to quit?',
+                                               QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No,
+                                               QtWidgets.QMessageBox.StandardButton.No)
+        if reply == QtWidgets.QMessageBox.StandardButton.Yes:
+            on_quit()
+            window.close()
     quit_btn.clicked.connect(_quit)  # type: ignore
     button_bar.addStretch(1)
     button_bar.addWidget(quit_btn)
     layout.addLayout(button_bar)
 
     window.show()
+    window.raise_()
+    window.activateWindow()
+    try:
+        # For Windows specifically, ensure focus
+        window.setWindowState(window.windowState() & ~QtCore.Qt.WindowState.WindowMinimized | QtCore.Qt.WindowState.WindowActive)
+    except Exception:
+        pass
     _window_ref = window
     app.processEvents()
