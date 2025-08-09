@@ -19,6 +19,7 @@ from modules.notifications_show_startup import show_startup_toast
 from modules.workflow_process_archive import process_archive
 from modules.watcher_directory_watcher import DirectoryWatcher
 from modules.tray_tray_controller import TrayController
+import queue
 from modules.gui_options_window import create_and_show_options_window
 from modules.qt_event_loop import integrate_qt_loop
 
@@ -60,12 +61,29 @@ def main():
     # Tray + options scheduling (Qt main thread)
     try:
         from PyQt6 import QtCore  # type: ignore
+        ui_queue: "queue.Queue[callable]" = queue.Queue()
+
+        def _process_ui_queue():
+            from queue import Empty
+            while True:
+                try:
+                    act = ui_queue.get_nowait()
+                except Empty:
+                    break
+                try:
+                    act()
+                except Exception:
+                    pass
+            QtCore.QTimer.singleShot(50, _process_ui_queue)
+
         def init_tray():
             cfg = initial_cfg
             def _open_options():
-                create_and_show_options_window(cfg, _graceful_exit)
+                # enqueue creation for main thread processing
+                ui_queue.put(lambda: create_and_show_options_window(cfg, _graceful_exit))
             tray = TrayController(open_options=_open_options)
             tray.start()
+        QtCore.QTimer.singleShot(0, _process_ui_queue)
         QtCore.QTimer.singleShot(0, init_tray)
     except Exception:
         pass

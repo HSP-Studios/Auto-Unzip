@@ -44,9 +44,9 @@ class TrayController:
         return pystray.Menu(pystray.MenuItem('Options', self._open_options))
 
     def _open_options(self, icon=None, item=None):  # pragma: no cover
-        try:  # dispatch to Qt thread if available
-            from PyQt6 import QtCore  # type: ignore
-            QtCore.QTimer.singleShot(0, self.open_options)
+        # open_options now enqueues UI work itself; just call it
+        try:
+            self.open_options()
         except Exception:
             self._action_queue.put(self.open_options)
 
