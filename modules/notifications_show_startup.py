@@ -1,7 +1,9 @@
 """
 notifications_show_startup.py
 -----------------------------
-Defines show_startup_toast() to print to console only.
+Defines show_startup_toast() to display a toast notification (fallback to console).
 """
+from .notifications_toast_backend import show_toast
+
 def show_startup_toast():
-    print("[Auto-Unzip] Started monitoring.")
+    show_toast("Auto-Unzip", "Started monitoring.")

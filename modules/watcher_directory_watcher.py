@@ -19,9 +19,9 @@ class DirectoryWatcher:
         self.get_folders = get_folders
         self.on_new_archive = on_new_archive
         self.interval = interval
-        self._seen: Set[str] = set()
+        self._seen = {}  # type: dict[str, float]
         self._stop = threading.Event()
-        self._thread: threading.Thread | None = None
+        self._thread = None
 
     def start(self):
         if self._thread and self._thread.is_alive():
@@ -44,8 +44,10 @@ class DirectoryWatcher:
                         ext = os.path.splitext(entry.name)[1].lower()
                         if ext in ARCHIVE_EXTENSIONS:
                             full = os.path.abspath(entry.path)
-                            if full not in self._seen:
-                                self._seen.add(full)
+                            mtime = entry.stat().st_mtime
+                            last_seen = self._seen.get(full)
+                            if last_seen is None or mtime > last_seen:
+                                self._seen[full] = mtime
                                 self.on_new_archive(full)
                 except FileNotFoundError:
                     continue
