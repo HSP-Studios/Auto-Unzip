@@ -100,7 +100,7 @@ def main():
         return
     if ('-v' in argv_lower) or ('--version' in argv_lower):
         try:
-            with open(os.path.join(os.path.dirname(__file__), 'version.json'), 'r', encoding='utf-8') as f:
+            with open(os.path.join(os.path.dirname(__file__), 'config', 'version.json'), 'r', encoding='utf-8') as f:
                 data = json.load(f)
             print(f"Auto-Unzip version {data.get('version', 'unknown')}")
         except Exception:

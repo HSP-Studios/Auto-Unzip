@@ -182,7 +182,7 @@ def create_and_show_options_window(cfg: Config, on_quit: Callable[[], None], on_
     def _load_version():
         try:
             root = os.path.dirname(os.path.dirname(__file__))
-            with open(os.path.join(root, 'version.json'), 'r', encoding='utf-8') as vf:
+            with open(os.path.join(root, 'config', 'version.json'), 'r', encoding='utf-8') as vf:
                 vdata = json.load(vf)
             ver = vdata.get('version') or f"{vdata.get('major','?')}.{vdata.get('minor','?')}.{vdata.get('patch','?')}"
         except Exception:
