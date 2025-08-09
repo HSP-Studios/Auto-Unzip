@@ -2,8 +2,8 @@
 tray_tray_controller.py
 -----------------------
 Defines TrayController for creating an optional system tray icon with pystray
-(if installed). Provides menu actions to view watched folders, add a folder, or
-quit the application.
+(if installed). Provides a single menu entry "Options" which opens the options
+GUI window. The GUI itself will offer controls and a Quit button.
 """
 from __future__ import annotations
 import threading
@@ -18,10 +18,8 @@ except ImportError:  # pragma: no cover
     ImageDraw = None  # type: ignore
 
 class TrayController:
-    def __init__(self, get_folders: Callable[[], list], add_folder: Callable[[str], None], on_quit: Callable[[], None]):
-        self.get_folders = get_folders
-        self.add_folder = add_folder
-        self.on_quit = on_quit
+    def __init__(self, open_options: Callable[[], None]):
+        self.open_options = open_options
         self._icon: Any = None
         self._thread: threading.Thread | None = None
 
@@ -40,25 +38,11 @@ class TrayController:
         if not pystray:
             return None
         return pystray.Menu(
-            pystray.MenuItem('Watched Folders', self._show_folders),
-            pystray.MenuItem('Add Folder', self._prompt_add_folder),
-            pystray.MenuItem('Quit', self._quit)
+            pystray.MenuItem('Options', self._open_options)
         )
 
-    def _show_folders(self, icon, item):  # pragma: no cover
-        print('[Auto-Unzip] Watched Folders:')
-        for f in self.get_folders():
-            print(' -', f)
-
-    def _prompt_add_folder(self, icon, item):  # pragma: no cover
-        new_path = input('Enter folder path to watch: ').strip()
-        if new_path:
-            self.add_folder(new_path)
-            print(f'[Auto-Unzip] Added watch folder: {new_path}')
-
-    def _quit(self, icon, item):  # pragma: no cover
-        self.stop()
-        self.on_quit()
+    def _open_options(self, icon, item):  # pragma: no cover
+        self.open_options()
 
     def start(self):  # pragma: no cover
         if not pystray:

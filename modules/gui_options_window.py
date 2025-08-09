@@ -1,0 +1,110 @@
+"""
+gui_options_window.py
+---------------------
+Defines create_and_show_options_window() which builds and shows the PyQt6
+options GUI (700x500, non-resizable) with scrollable sections for General and
+Advanced settings. Provides simple controls bound to the Config object.
+"""
+from __future__ import annotations
+import sys
+from typing import Callable
+
+try:
+    from PyQt6 import QtWidgets, QtCore  # type: ignore
+except ImportError:  # pragma: no cover
+    QtWidgets = None  # type: ignore
+    QtCore = None  # type: ignore
+
+from .config_dataclass import Config
+from .config_save_config import save_config
+
+_window_ref = None  # prevent GC
+
+def create_and_show_options_window(cfg: Config, on_quit: Callable[[], None]):
+    global _window_ref
+    if QtWidgets is None:
+        print('[Auto-Unzip] PyQt6 not installed. Install with pip install PyQt6.')
+        return
+
+    app = QtWidgets.QApplication.instance() or QtWidgets.QApplication(sys.argv)
+
+    window = QtWidgets.QWidget()
+    window.setWindowTitle('Auto-Unzip Options')
+    window.setFixedSize(700, 500)
+
+    layout = QtWidgets.QVBoxLayout(window)
+
+    scroll = QtWidgets.QScrollArea()
+    scroll.setWidgetResizable(True)
+    inner = QtWidgets.QWidget()
+    inner_layout = QtWidgets.QVBoxLayout(inner)
+
+    # General Section
+    general_group = QtWidgets.QGroupBox('General')
+    general_layout = QtWidgets.QFormLayout(general_group)
+
+    delete_checkbox = QtWidgets.QCheckBox('Delete archives after extraction')
+    delete_checkbox.setChecked(cfg.delete_archives_after_extract)
+    def _toggle_delete(state):
+        cfg.delete_archives_after_extract = state == QtCore.Qt.CheckState.Checked
+        save_config(cfg)
+    delete_checkbox.stateChanged.connect(_toggle_delete)  # type: ignore
+    general_layout.addRow(delete_checkbox)
+
+    # Poll interval
+    poll_spin = QtWidgets.QDoubleSpinBox()
+    poll_spin.setRange(0.5, 60.0)
+    poll_spin.setSingleStep(0.5)
+    poll_spin.setValue(cfg.poll_interval_seconds)
+    def _poll_changed(val: float):
+        cfg.poll_interval_seconds = float(val)
+        save_config(cfg)
+    poll_spin.valueChanged.connect(_poll_changed)  # type: ignore
+    general_layout.addRow('Poll Interval (s):', poll_spin)
+
+    # Watched folders list
+    folders_list = QtWidgets.QListWidget()
+    for f in cfg.watch_folders:
+        folders_list.addItem(f)
+    add_btn = QtWidgets.QPushButton('Add Folder')
+    def _add_folder():
+        dlg = QtWidgets.QFileDialog(window)
+        dlg.setFileMode(QtWidgets.QFileDialog.FileMode.Directory)  # type: ignore
+        if dlg.exec():  # type: ignore
+            paths = dlg.selectedFiles()  # type: ignore
+            if paths:
+                path = paths[0]
+                if path not in cfg.watch_folders:
+                    cfg.watch_folders.append(path)
+                    folders_list.addItem(path)
+                    save_config(cfg)
+    add_btn.clicked.connect(_add_folder)  # type: ignore
+    general_layout.addRow('Watched Folders:', folders_list)
+    general_layout.addRow(add_btn)
+
+    inner_layout.addWidget(general_group)
+
+    # Advanced Section
+    advanced_group = QtWidgets.QGroupBox('Advanced')
+    advanced_layout = QtWidgets.QVBoxLayout(advanced_group)
+    advanced_layout.addWidget(QtWidgets.QLabel('No advanced settings yet.'))
+    inner_layout.addWidget(advanced_group)
+
+    inner_layout.addStretch(1)
+    scroll.setWidget(inner)
+    layout.addWidget(scroll)
+
+    # Bottom buttons
+    button_bar = QtWidgets.QHBoxLayout()
+    quit_btn = QtWidgets.QPushButton('Quit')
+    def _quit():
+        on_quit()
+        window.close()
+    quit_btn.clicked.connect(_quit)  # type: ignore
+    button_bar.addStretch(1)
+    button_bar.addWidget(quit_btn)
+    layout.addLayout(button_bar)
+
+    window.show()
+    _window_ref = window
+    app.processEvents()
