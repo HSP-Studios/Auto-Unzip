@@ -76,6 +76,12 @@ def main():
                 QtCore.QTimer.singleShot(50, _mark_ready)
         QtCore.QTimer.singleShot(0, _mark_ready)
 
+        # Heartbeat to verify timers firing
+        def _heartbeat():
+            print('[Debug][Heartbeat] Qt main thread alive;', 'cfg_ready=' + str(cfg_ready_flag.is_set()), 'thread=' + threading.current_thread().name)
+            QtCore.QTimer.singleShot(1000, _heartbeat)
+        QtCore.QTimer.singleShot(1000, _heartbeat)
+
         def init_tray():  # runs on Qt main thread
             if not cfg_ready_flag.is_set():
                 # Reschedule until config loaded to avoid duplicate config objects
@@ -90,6 +96,8 @@ def main():
             tray = TrayController(open_options=_open_options)
             tray.start()
             print('[Debug] TrayController started (visible may still be False initially)')
+            # Auto-open options for diagnostics after 2s
+            QtCore.QTimer.singleShot(2000, _open_options)
         QtCore.QTimer.singleShot(0, init_tray)
     except Exception as e:
         print('[Debug] Qt not available or tray scheduling failed:', e)
