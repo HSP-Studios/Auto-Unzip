@@ -21,7 +21,7 @@ from .config_settings_file_path import get_settings_file_path
 
 _window_ref = None  # prevent GC
 
-def create_and_show_options_window(cfg: Config, on_quit: Callable[[], None]):
+def create_and_show_options_window(cfg: Config, on_quit: Callable[[], None], on_reload: Callable[[], None] | None = None):
     global _window_ref
     if QtWidgets is None:
         print('[Auto-Unzip] PyQt6 not installed. Install with pip install PyQt6.')
@@ -167,6 +167,11 @@ def create_and_show_options_window(cfg: Config, on_quit: Callable[[], None]):
     # Bottom buttons
     button_bar = QtWidgets.QHBoxLayout()
     quit_btn = QtWidgets.QPushButton('Quit')
+    reload_btn = QtWidgets.QPushButton('Reload App')
+    def _reload():
+        if on_reload:
+            on_reload()
+    reload_btn.clicked.connect(_reload)  # type: ignore
     def _quit():
         reply = QtWidgets.QMessageBox.question(window, 'Quit Auto-Unzip', 'Are you sure you want to quit?',
                                                QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No,
@@ -176,6 +181,7 @@ def create_and_show_options_window(cfg: Config, on_quit: Callable[[], None]):
             window.close()
     quit_btn.clicked.connect(_quit)  # type: ignore
     button_bar.addStretch(1)
+    button_bar.addWidget(reload_btn)
     button_bar.addWidget(quit_btn)
     layout.addLayout(button_bar)
 
