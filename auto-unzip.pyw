@@ -11,6 +11,7 @@ import os
 import time
 import json
 import subprocess
+from typing import List
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 
@@ -105,6 +106,8 @@ def main():
         except Exception:
             print("Auto-Unzip version unknown (version.json unreadable)")
         return
+
+    _enforce_single_instance()
 
     # Load config once on main thread so all components share the same instance
     initial_cfg = load_config()
@@ -223,18 +226,77 @@ def _reload_app():
     except Exception:
         _graceful_exit()
 
- 
+
 def _perform_exec_restart():
     """Spawn a fresh process running the same script then exit current one.
 
     Avoids execv issues with .pyw + spaces on Windows. Keeps original arguments.
     """
     script_path = os.path.abspath(sys.argv[0])
+    # Make sure we clean up tray & write our pid so new instance can kill us if still alive
+    _write_pid_file()  # refresh our pid timestamp
     args = [sys.executable, script_path] + sys.argv[1:]
     try:
         subprocess.Popen(args, cwd=os.path.dirname(script_path))
     finally:
         os._exit(0)
+
+
+PID_FILE = os.path.join(os.path.dirname(__file__), 'config', 'auto_unzip.pid')
+
+def _read_pid_file() -> List[int]:
+    try:
+        with open(PID_FILE, 'r', encoding='utf-8') as f:
+            content = f.read().strip()
+        if not content:
+            return []
+        return [int(p) for p in content.split(',') if p.strip().isdigit()]
+    except Exception:
+        return []
+
+def _write_pid_file(pids: List[int] | None = None):
+    try:
+        os.makedirs(os.path.dirname(PID_FILE), exist_ok=True)
+        if pids is None:
+            pids = [os.getpid()]
+        with open(PID_FILE, 'w', encoding='utf-8') as f:
+            f.write(','.join(str(p) for p in pids))
+    except Exception:
+        pass
+
+def _kill_pid(pid: int):  # best-effort
+    if pid == os.getpid():
+        return
+    try:
+        # Test if alive
+        os.kill(pid, 0)
+    except Exception:
+        return  # not alive
+    try:
+        os.kill(pid, signal.SIGTERM)
+    except Exception:
+        pass
+    # Give brief time then force if still alive
+    time.sleep(0.2)
+    try:
+        os.kill(pid, 0)
+        # still alive -> force taskkill on Windows
+        if os.name == 'nt':
+            subprocess.run(['taskkill', '/PID', str(pid), '/F'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except Exception:
+        pass
+
+def _enforce_single_instance():
+    """Ensure only one active instance; kill stale/other pids listed in pid file."""
+    existing = _read_pid_file()
+    current = os.getpid()
+    remaining: List[int] = []
+    for pid in existing:
+        if pid == current:
+            continue
+        _kill_pid(pid)
+    remaining.append(current)
+    _write_pid_file(remaining)
 
 
 def _install_signals(w: DirectoryWatcher):
