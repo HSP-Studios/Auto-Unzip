@@ -177,7 +177,7 @@ def create_and_show_options_window(cfg: Config, on_quit: Callable[[], None], on_
             ver = vdata.get('version') or f"{vdata.get('major','?')}.{vdata.get('minor','?')}.{vdata.get('patch','?')}"
         except Exception:
             ver = 'unknown'
-        version_label.setText(f'Auto Unzip {ver}')
+        version_label.setText(f'Auto Unzip v{ver}')
     _load_version()
     quit_btn = QtWidgets.QPushButton('Quit')
     reload_btn = QtWidgets.QPushButton('Reload App')
