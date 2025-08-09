@@ -17,6 +17,7 @@ except ImportError:  # pragma: no cover
 
 from .config_dataclass import Config
 from .config_save_config import save_config
+from .config_settings_file_path import get_settings_file_path
 
 _window_ref = None  # prevent GC
 
@@ -134,7 +135,29 @@ def create_and_show_options_window(cfg: Config, on_quit: Callable[[], None]):
     # Advanced Section
     advanced_group = QtWidgets.QGroupBox('Advanced')
     advanced_layout = QtWidgets.QVBoxLayout(advanced_group)
-    advanced_layout.addWidget(QtWidgets.QLabel('No advanced settings yet.'))
+    open_cfg_btn = QtWidgets.QPushButton('Open Configuration File')
+    def _open_config_file():
+        try:
+            path = get_settings_file_path()
+            # Use platform-specific open
+            if sys.platform.startswith('win'):
+                import os
+                os.startfile(path)  # type: ignore
+            elif sys.platform == 'darwin':
+                import subprocess
+                subprocess.Popen(['open', path])
+            else:
+                import subprocess
+                subprocess.Popen(['xdg-open', path])
+        except Exception as e:
+            try:
+                from PyQt6 import QtWidgets  # type: ignore
+                QtWidgets.QMessageBox.warning(window, 'Error', f'Could not open config file: {e}')
+            except Exception:
+                print(f'[Auto-Unzip] Could not open config file: {e}')
+    open_cfg_btn.clicked.connect(_open_config_file)  # type: ignore
+    advanced_layout.addWidget(open_cfg_btn)
+    advanced_layout.addWidget(QtWidgets.QLabel('Configuration file opens in your default editor.'))
     inner_layout.addWidget(advanced_group)
 
     inner_layout.addStretch(1)
