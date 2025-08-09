@@ -2,6 +2,7 @@
 
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 Background Windows helper that automatically extracts new `.zip`, `.zipx`, and `.7z` files appearing in watched folders (Downloads by default), shows status in the console, and optionally deletes the original archive after successful extraction. Provides a tray icon (if `pystray` + `Pillow` installed) to list or add watched folders and quit.
 
 ## Features
@@ -18,6 +19,12 @@ Background Windows helper that automatically extracts new `.zip`, `.zipx`, `.7z`
 ## Features
 * Automatic discovery of new ZIP, ZIPX, 7Z, RAR, TAR, GZ, BZ2, TGZ, TBZ archives via lightweight polling
 >>>>>>> feature/tar-gz-bz2-support
+=======
+Background Windows helper that automatically extracts new `.zip`, `.7z`, and `.cab` files appearing in watched folders (Downloads by default), shows status in the console, and optionally deletes the original archive after successful extraction. Provides a tray icon (if `pystray` + `Pillow` installed) to list or add watched folders and quit.
+
+## Features
+* Automatic discovery of new ZIP, 7Z, and CAB archives via lightweight polling
+>>>>>>> feature/cab-support
 * Console notifications (startup, progress updates, completion/error)
 * System tray icon with minimal menu (optional if dependencies missing)
 * Modular, one-function-per-file design for clarity
@@ -40,6 +47,7 @@ modules/
   extract_zip.py
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
   extract_zipx.py            # NEW: ZIPX extraction
   extract_7z.py              # 7z extraction
   extract_archive.py         # Dispatches to zip/zipx/7z
@@ -56,6 +64,11 @@ modules/
   extract_tar_gz_bz2.py      # NEW: TAR/GZ/BZ2/TGZ/TBZ extraction
   extract_archive.py         # Dispatches to all formats
 >>>>>>> feature/tar-gz-bz2-support
+=======
+  extract_7z.py              # 7z extraction
+  extract_cab.py             # NEW: CAB extraction
+  extract_archive.py         # Dispatches to zip/7z/cab
+>>>>>>> feature/cab-support
   watcher_directory_watcher.py
   workflow_process_archive.py
   tray_tray_controller.py
@@ -80,6 +93,7 @@ py .\auto-unzip.py
 ```
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 You should see a startup message in the console and a tray icon (if pystray + Pillow available). Drop a `.zip`, `.zipx`, or `.7z` into your Downloads folder; extraction will begin immediately into a folder named after the archive (without extension).
 =======
 You should see a startup message in the console and a tray icon (if pystray + Pillow available). Drop a `.zip`, `.zipx`, `.7z`, or `.rar` into your Downloads folder; extraction will begin immediately into a folder named after the archive (without extension).
@@ -87,6 +101,16 @@ You should see a startup message in the console and a tray icon (if pystray + Pi
 =======
 You should see a startup message in the console and a tray icon (if pystray + Pillow available). Drop a `.zip`, `.zipx`, `.7z`, `.rar`, `.tar`, `.gz`, `.bz2`, `.tgz`, or `.tbz` into your Downloads folder; extraction will begin immediately into a folder named after the archive (without extension).
 >>>>>>> feature/tar-gz-bz2-support
+=======
+You should see a startup message in the console and a tray icon (if pystray + Pillow available). Drop a `.zip`, `.7z`, or `.cab` into your Downloads folder; extraction will begin immediately into a folder named after the archive (without extension).
+## Supported Archive Formats
+
+* `.zip` — Standard ZIP extraction
+* `.7z` — 7-Zip extraction (requires `py7zr`)
+* `.cab` — CAB extraction (uses Windows built-in `expand` command)
+
+For `.cab` files, extraction is performed using the Windows `expand` command. Progress reporting is not available for CAB extraction.
+>>>>>>> feature/cab-support
 
 ## Adding Watch Folders
 Use the tray menu -> "Add Folder" and input a path, or edit `modules/settings.json` while the app is stopped and restart.
