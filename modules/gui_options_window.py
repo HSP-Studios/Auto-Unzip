@@ -92,6 +92,12 @@ def create_and_show_options_window(cfg: Config, on_quit: Callable[[], None]):
             paths = dlg.selectedFiles()  # type: ignore
             if paths:
                 path = paths[0]
+                # Normalize path to Windows-style backslashes uniformly
+                try:
+                    import pathlib
+                    path = str(pathlib.PureWindowsPath(path))
+                except Exception:
+                    pass
                 if path not in cfg.watch_folders:
                     cfg.watch_folders.append(path)
                     folders_list.addItem(path)

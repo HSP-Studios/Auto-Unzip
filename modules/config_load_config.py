@@ -6,6 +6,7 @@ Provides load_config() to load settings from disk and return a Config instance
 """
 import json
 import os
+import pathlib
 from .config_dataclass import Config
 from .config_settings_file_path import get_settings_file_path
 from .config_save_config import save_config
@@ -25,6 +26,7 @@ def load_config() -> Config:
         try:
             with open(path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
+            data = _normalize_loaded_data(data)
             return Config(**data)
         except Exception:
             cfg = Config()
@@ -36,3 +38,28 @@ def load_config() -> Config:
     save_config(cfg)
     setattr(cfg, '_was_new', True)
     return cfg
+
+
+def _normalize_loaded_data(data: dict) -> dict:
+    """Normalize watch_folders paths to consistent Windows-style escaped backslashes.
+
+    Converts mixed separators or forward slashes to OS native, then re-serializes
+    using backslashes so persisted JSON becomes uniform.
+    """
+    try:
+        folders = data.get('watch_folders')
+        if isinstance(folders, list):
+            normd = []
+            for p in folders:
+                if not isinstance(p, str):
+                    continue
+                # pathlib to resolve normalization; don't require path to exist
+                win_path = pathlib.PureWindowsPath(p)
+                # Build with backslashes
+                rendered = str(win_path)
+                # Ensure backslashes escaped when written (json will handle escaping)
+                normd.append(rendered)
+            data['watch_folders'] = normd
+    except Exception:
+        pass
+    return data
