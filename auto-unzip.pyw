@@ -97,7 +97,7 @@ def main():
         def init_tray():
             cfg = initial_cfg
             def _open_options():
-                ui_queue.put(lambda: create_and_show_options_window(cfg, _confirmed_graceful_exit))
+                ui_queue.put(lambda: create_and_show_options_window(cfg, _confirmed_graceful_exit, _reload_app))
             def _request_quit():
                 # Must run on UI thread: enqueue dialog creation
                 ui_queue.put(_confirm_and_quit)
@@ -150,6 +150,18 @@ def _graceful_exit():
 def _confirmed_graceful_exit():
     # Wrapper used by options window (which already spawns its own confirmation) to keep API consistent
     _graceful_exit()
+
+def _reload_app():
+    """Reload the entire application process cleanly.
+
+    Re-execs the current Python interpreter with original argv, similar to
+    what RestartHandler does on file change.
+    """
+    try:
+        script = os.path.abspath(sys.argv[0])
+        os.execv(sys.executable, [sys.executable, script] + sys.argv[1:])
+    except Exception:
+        _graceful_exit()
 
 
 def _install_signals(w: DirectoryWatcher):
