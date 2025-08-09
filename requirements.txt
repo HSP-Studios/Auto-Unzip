@@ -4,4 +4,4 @@ Pillow
 py7zr
 rarfile
 watchdog
-PyQt6
+winotify
