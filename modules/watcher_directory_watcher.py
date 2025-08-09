@@ -10,7 +10,9 @@ import threading
 import time
 from typing import Callable, Iterable, Set
 
-ARCHIVE_EXTENSIONS = {'.zip'}
+ARCHIVE_EXTENSIONS = {
+    '.zip', '.zipx', '.7z', '.rar', '.tar', '.gz', '.bz2', '.tgz', '.tbz', '.tar.gz', '.tar.bz2', '.cab'
+}
 
 class DirectoryWatcher:
     def __init__(self, get_folders: Callable[[], Iterable[str]], on_new_archive: Callable[[str], None], interval: float = 2.0):
