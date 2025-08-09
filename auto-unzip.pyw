@@ -32,32 +32,32 @@ class RestartHandler(FileSystemEventHandler):
             os.execv(sys.executable, [sys.executable] + sys.argv)
 
 def main():
-    def app_logic():
-        cfg = load_config()
-        show_startup_toast()
+    cfg = load_config()
+    show_startup_toast()
 
-        def _open_options():
-            create_and_show_options_window(cfg, _graceful_exit)
+    def _open_options():
+        create_and_show_options_window(cfg, _graceful_exit)
 
-        tray_controller = TrayController(open_options=_open_options)
-        tray_controller.start()
+    tray_controller = TrayController(open_options=_open_options)
+    tray_controller.start()
 
-        watcher = DirectoryWatcher(lambda: cfg.watch_folders, lambda p: process_archive(p, cfg), cfg.poll_interval_seconds)
-        watcher.start()
+    watcher = DirectoryWatcher(lambda: cfg.watch_folders, lambda p: process_archive(p, cfg), cfg.poll_interval_seconds)
+    watcher.start()
 
-        # Watch for changes in source files and restart
-        event_handler = RestartHandler()
-        observer = Observer()
-        observer.schedule(event_handler, path=os.path.dirname(__file__), recursive=True)
-        observer.start()
+    event_handler = RestartHandler()
+    observer = Observer()
+    observer.schedule(event_handler, path=os.path.dirname(__file__), recursive=True)
+    observer.start()
 
-        _install_signals(watcher)
+    _install_signals(watcher)
+
+    def loop():
         try:
             while True:
                 if hasattr(signal, 'pause'):
                     signal.pause()  # type: ignore[attr-defined]
                 else:
-                    threading.Event().wait(1)
+                    threading.Event().wait(0.5)
         except KeyboardInterrupt:
             pass
         finally:
@@ -66,7 +66,7 @@ def main():
             observer.join()
             save_config(cfg)
 
-    integrate_qt_loop(app_logic)
+    integrate_qt_loop(loop)
 
 
 def _add_folder(path: str, cfg: Config):

@@ -1,13 +1,12 @@
 """
 qt_event_loop.py
 -----------------
-Provides integrate_qt_loop(run_fn) which attempts to start a Qt event loop
-on the main thread if PyQt6 is available. The provided run_fn is executed in a
-worker thread to keep existing polling + tray logic functioning. If Qt is not
-available, it simply calls run_fn synchronously.
+Provides integrate_qt_loop(run_fn) which ensures a Qt event loop exists on the
+main thread, then runs run_fn synchronously ON the main thread (so any Qt
+widgets inside run_fn are created on the correct thread). If Qt is not
+available, it falls back to calling run_fn directly.
 """
 from __future__ import annotations
-import threading
 from typing import Callable
 
 try:  # pragma: no cover
@@ -18,15 +17,15 @@ except Exception:  # pragma: no cover
 
 def integrate_qt_loop(run_fn: Callable[[], None]):
     if QtWidgets is None:
-        # No Qt, run normally
         run_fn()
         return
-
-    # If a QApplication already exists, just run_fn in a thread
     app = QtWidgets.QApplication.instance()
+    created = False
     if app is None:
         app = QtWidgets.QApplication([])
-
-    t = threading.Thread(target=run_fn, daemon=True)
-    t.start()
-    app.exec()
+        created = True
+    # Run the logic synchronously on the main thread
+    run_fn()
+    if created:
+        # Only start the event loop if we created it
+        app.exec()
