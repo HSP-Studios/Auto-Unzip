@@ -80,9 +80,11 @@ def create_and_show_options_window(cfg: Config, on_quit: Callable[[], None]):
 
     # Watched folders list
     folders_list = QtWidgets.QListWidget()
+    folders_list.setSelectionMode(QtWidgets.QAbstractItemView.SelectionMode.ExtendedSelection)  # allow multi-select
     for f in cfg.watch_folders:
         folders_list.addItem(f)
     add_btn = QtWidgets.QPushButton('Add Folder')
+    remove_btn = QtWidgets.QPushButton('Remove Selected')
     def _add_folder():
         dlg = QtWidgets.QFileDialog(window)
         dlg.setFileMode(QtWidgets.QFileDialog.FileMode.Directory)  # type: ignore
@@ -94,9 +96,32 @@ def create_and_show_options_window(cfg: Config, on_quit: Callable[[], None]):
                     cfg.watch_folders.append(path)
                     folders_list.addItem(path)
                     save_config(cfg)
+    def _remove_selected():
+        # Collect selected items first (can't modify while iterating selection)
+        selected = list(folders_list.selectedItems())
+        if not selected:
+            return
+        removed_any = False
+        for item in selected:
+            path = item.text()
+            if path in cfg.watch_folders:
+                try:
+                    cfg.watch_folders.remove(path)
+                except ValueError:
+                    pass
+                row = folders_list.row(item)
+                folders_list.takeItem(row)
+                removed_any = True
+        if removed_any:
+            save_config(cfg)
+    remove_btn.clicked.connect(_remove_selected)  # type: ignore
     add_btn.clicked.connect(_add_folder)  # type: ignore
     general_layout.addRow('Watched Folders:', folders_list)
-    general_layout.addRow(add_btn)
+    btn_row = QtWidgets.QHBoxLayout()
+    btn_row.addWidget(add_btn)
+    btn_row.addWidget(remove_btn)
+    btn_row.addStretch(1)
+    general_layout.addRow(btn_row)
 
     inner_layout.addWidget(general_group)
 
