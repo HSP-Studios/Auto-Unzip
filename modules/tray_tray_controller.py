@@ -26,6 +26,7 @@ class TrayController:
         self._thread: Optional[threading.Thread] = None
         self._action_queue: "queue.Queue[Callable[[], None]]" = queue.Queue()
         self._running = False
+        print('[Debug][TrayController] Initialized in thread', threading.current_thread().name)
 
     def _create_image(self):  # pragma: no cover
         if not Image or not ImageDraw:
@@ -46,8 +47,14 @@ class TrayController:
         )
 
     def _open_options(self, icon=None, item=None):  # pragma: no cover
-        # Dispatch to main thread via queue to avoid GUI creation from tray thread
-        self._action_queue.put(self.open_options)
+        # Dispatch to main thread via QTimer if available
+        try:
+            from PyQt6 import QtCore
+            print('[Debug][TrayController] Scheduling open_options on Qt main thread from', threading.current_thread().name)
+            QtCore.QTimer.singleShot(0, self.open_options)
+        except Exception as e:
+            print('[Debug][TrayController] QTimer dispatch failed; queueing. Error:', e)
+            self._action_queue.put(self.open_options)
 
     def start(self):  # pragma: no cover
         if not pystray:
@@ -58,26 +65,32 @@ class TrayController:
         image = self._create_image()
         self._icon = pystray.Icon('auto_unzip', image, 'Auto-Unzip', self._build_menu())
         # Always run in dedicated thread to maintain lifetime
-        self._thread = threading.Thread(target=self._icon.run, daemon=True)
+        self._thread = threading.Thread(target=self._icon.run, daemon=True, name='TrayIconThread')
         self._thread.start()
+        print('[Debug][TrayController] Tray thread started')
         # Wait briefly for icon to appear
         for _ in range(10):
             if getattr(self._icon, 'visible', False):
                 break
             time.sleep(0.1)
+        print('[Debug][TrayController] Icon visibility:', getattr(self._icon, 'visible', None))
         self._running = True
-        t = threading.Thread(target=self._pump_actions, daemon=True)
+        t = threading.Thread(target=self._pump_actions, daemon=True, name='TrayActionPump')
         t.start()
+        print('[Debug][TrayController] Action pump started')
 
     def _pump_actions(self):  # pragma: no cover
+        print('[Debug][TrayController] Pump loop starting in thread', threading.current_thread().name)
         while self._running:
             try:
                 action = self._action_queue.get(timeout=0.5)
             except Exception:
                 continue
             try:
+                print('[Debug][TrayController] Executing queued action on', threading.current_thread().name)
                 action()
             except Exception:
+                print('[Debug][TrayController] Action raised exception')
                 pass
 
     def stop(self):  # pragma: no cover
