@@ -1,0 +1,60 @@
+name: Auto-Unzip CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        archive:
+          - test.zip
+          - test.zipx
+          - test.7z
+          - test.rar
+          - test.tar
+          - test.gz
+          - test.bz2
+          - test.tgz
+          - test.tbz
+          - test.cab
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.13'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Download UnRAR tool
+        run: |
+          curl -L -o dependencies/unrarw64.exe https://www.rarlab.com/rar/unrarw64.exe
+
+      - name: Prepare test archives
+        run: |
+          mkdir test_archives
+          # Add commands to generate or copy test archives for each format
+          # Example: echo "test" > test_archives/test.txt
+          # zip test_archives/test.zip test_archives/test.txt
+          # (You may need to add more commands or use pre-existing test files)
+
+      - name: Run Auto-Unzip on ${{ matrix.archive }}
+        run: |
+          python auto-unzip.pyw
+        env:
+          TEST_ARCHIVE: test_archives/${{ matrix.archive }}
+
+      - name: Check extraction result
+        run: |
+          # Add commands to verify extraction for each archive type
+          # Example: if exist test_archives\test (echo Success) else (exit 1)
