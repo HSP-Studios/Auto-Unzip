@@ -26,12 +26,27 @@ from modules.qt_event_loop import integrate_qt_loop
 
 
 class RestartHandler(FileSystemEventHandler):
-    def __init__(self):
+    def __init__(self, script_path: str, min_interval: float = 2.0):
         super().__init__()
+        self.script_path = os.path.abspath(script_path)
+        self.min_interval = min_interval
+        self._last_restart = 0.0
+
     def on_modified(self, event):
-        if event.src_path.endswith('.py'):
-            print('[Auto-Unzip] Source changed, restarting...')
-            os.execv(sys.executable, [sys.executable] + sys.argv)
+        try:
+            changed = os.path.abspath(event.src_path)
+        except Exception:
+            return
+        # Only act if the main script file itself changed
+        if os.path.normcase(changed) != os.path.normcase(self.script_path):
+            return
+        now = time.time()
+        if now - self._last_restart < self.min_interval:
+            return
+        self._last_restart = now
+        print(f'[Auto-Unzip] Source changed ({changed}), restarting...')
+        script = self.script_path
+        os.execv(sys.executable, [sys.executable, script] + sys.argv[1:])
 
 def main():
     # Load config once on main thread so all components share the same instance
@@ -42,7 +57,7 @@ def main():
         show_startup_toast()
         watcher = DirectoryWatcher(lambda: cfg.watch_folders, lambda p: process_archive(p, cfg), cfg.poll_interval_seconds)
         watcher.start()
-        event_handler = RestartHandler()
+        event_handler = RestartHandler(script_path=sys.argv[0])
         observer = Observer()
         observer.schedule(event_handler, path=os.path.dirname(__file__), recursive=True)
         observer.start()
