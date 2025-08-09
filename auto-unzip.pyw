@@ -9,6 +9,7 @@ import sys
 import threading
 import os
 import time
+import json
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 
@@ -39,7 +40,7 @@ class RestartHandler(FileSystemEventHandler):
         self.min_interval = min_interval
         self._last_restart = 0.0
         self._pending = False
-
+ 
     def _should_consider(self, path: str) -> bool:
         if not path.endswith(('.py', '.pyw')):
             return False
@@ -67,9 +68,8 @@ class RestartHandler(FileSystemEventHandler):
         self._last_restart = time.time()
         self._pending = False
         print(f'[Auto-Unzip] Source changed ({changed}), restarting...')
-        script = os.path.abspath(sys.argv[0])
         try:
-            os.execv(sys.executable, [sys.executable, script] + sys.argv[1:])
+            _perform_exec_restart()
         except Exception as e:
             print(f'[Auto-Unzip] Restart failed: {e}')
 
@@ -78,6 +78,28 @@ class RestartHandler(FileSystemEventHandler):
             self._trigger_restart('pending-change')
 
 def main():
+    # Basic CLI handling (keep lightweight to avoid argparse dependency)
+    argv_lower = [a.lower() for a in sys.argv[1:]]
+    if ('-h' in argv_lower) or ('--help' in argv_lower):
+        print("Auto-Unzip - automatic extraction service")
+        print("Usage: python auto-unzip.pyw [options]")
+        print()
+        print("Options:")
+        print("  -h, --help       Show this help and exit")
+        print("  -v, --version    Show version and exit")
+        print()
+        print("The application has no runtime CLI options; configuration is managed via")
+        print("the Options window (tray icon) and the config/settings.json file.")
+        return
+    if ('-v' in argv_lower) or ('--version' in argv_lower):
+        try:
+            with open(os.path.join(os.path.dirname(__file__), 'version.json'), 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            print(f"Auto-Unzip version {data.get('version', 'unknown')}")
+        except Exception:
+            print("Auto-Unzip version unknown (version.json unreadable)")
+        return
+
     # Load config once on main thread so all components share the same instance
     initial_cfg = load_config()
     first_launch = getattr(initial_cfg, '_was_new', False)
@@ -191,10 +213,26 @@ def _reload_app():
     what RestartHandler does on file change.
     """
     try:
-        script = os.path.abspath(sys.argv[0])
-        os.execv(sys.executable, [sys.executable, script] + sys.argv[1:])
+        _perform_exec_restart()
     except Exception:
         _graceful_exit()
+
+
+def _perform_exec_restart():
+    """Helper to exec the current interpreter with the original arguments.
+
+    Uses sys.argv as-is (so the script path is preserved exactly as launched),
+    and ensures the working directory is the script's directory to avoid edge
+    cases where Python mis-resolves the script when paths contain spaces.
+    """
+    script_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
+    try:
+        os.chdir(script_dir)
+    except Exception:
+        pass  # non-fatal
+    # Args for execv: first element is program (interpreter), followed by original argv
+    argv = [sys.executable] + sys.argv
+    os.execv(sys.executable, argv)
 
 
 def _install_signals(w: DirectoryWatcher):
