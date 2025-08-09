@@ -1,9 +1,9 @@
 # Auto-Unzip
 
-Background Windows helper that automatically extracts new `.zip` **and `.7z`** files appearing in watched folders (Downloads by default), shows status in the console, and optionally deletes the original archive after successful extraction. Provides a tray icon (if `pystray` + `Pillow` installed) to list or add watched folders and quit.
+Background Windows helper that automatically extracts new `.zip`, `.7z`, and `.cab` files appearing in watched folders (Downloads by default), shows status in the console, and optionally deletes the original archive after successful extraction. Provides a tray icon (if `pystray` + `Pillow` installed) to list or add watched folders and quit.
 
 ## Features
-* Automatic discovery of new ZIP and 7Z archives via lightweight polling
+* Automatic discovery of new ZIP, 7Z, and CAB archives via lightweight polling
 * Console notifications (startup, progress updates, completion/error)
 * System tray icon with minimal menu (optional if dependencies missing)
 * Modular, one-function-per-file design for clarity
@@ -24,8 +24,9 @@ modules/
   notifications_show_progress.py
   notifications_show_completion.py
   extract_zip.py
-  extract_7z.py              # NEW: 7z extraction
-  extract_archive.py         # Dispatches to zip/7z
+  extract_7z.py              # 7z extraction
+  extract_cab.py             # NEW: CAB extraction
+  extract_archive.py         # Dispatches to zip/7z/cab
   watcher_directory_watcher.py
   workflow_process_archive.py
   tray_tray_controller.py
@@ -46,7 +47,14 @@ py -m pip install -r requirements.txt
 ```
 py .\auto-unzip.py
 ```
-You should see a startup message in the console and a tray icon (if pystray + Pillow available). Drop a `.zip` or `.7z` into your Downloads folder; extraction will begin immediately into a folder named after the archive (without extension).
+You should see a startup message in the console and a tray icon (if pystray + Pillow available). Drop a `.zip`, `.7z`, or `.cab` into your Downloads folder; extraction will begin immediately into a folder named after the archive (without extension).
+## Supported Archive Formats
+
+* `.zip` — Standard ZIP extraction
+* `.7z` — 7-Zip extraction (requires `py7zr`)
+* `.cab` — CAB extraction (uses Windows built-in `expand` command)
+
+For `.cab` files, extraction is performed using the Windows `expand` command. Progress reporting is not available for CAB extraction.
 
 ## Adding Watch Folders
 Use the tray menu -> "Add Folder" and input a path, or edit `modules/settings.json` while the app is stopped and restart.
