@@ -27,6 +27,8 @@ def load_config() -> Config:
             with open(path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
             data = _normalize_loaded_data(data)
+            if 'enable_hot_reload' not in data:
+                data['enable_hot_reload'] = True
             return Config(**data)
         except Exception:
             cfg = Config()

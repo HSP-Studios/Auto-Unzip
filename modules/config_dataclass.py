@@ -14,3 +14,4 @@ class Config:
     watch_folders: List[str] = field(default_factory=lambda: [default_downloads_folder()])
     poll_interval_seconds: float = 2.0
     delete_archives_after_extract: bool = True
+    enable_hot_reload: bool = True  # allow disabling automatic code reloads

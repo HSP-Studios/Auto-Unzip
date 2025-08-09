@@ -120,24 +120,29 @@ def main():
         watcher = DirectoryWatcher(lambda: cfg.watch_folders, lambda p: process_archive(p, cfg), cfg.poll_interval_seconds)
         watcher.start()
         project_root = os.path.dirname(os.path.abspath(__file__))
-        event_handler = RestartHandler(project_root=project_root)
-        observer = Observer()
-        observer.schedule(event_handler, path=project_root, recursive=True)
-        observer.start()
+        event_handler = None
+        observer = None
+        if getattr(cfg, 'enable_hot_reload', True):
+            event_handler = RestartHandler(project_root=project_root)
+            observer = Observer()
+            observer.schedule(event_handler, path=project_root, recursive=True)
+            observer.start()
         _install_signals(watcher)
         try:
             while True:
                 time.sleep(0.5)
-                try:
-                    event_handler.poll()
-                except Exception:
-                    pass
+                if event_handler:
+                    try:
+                        event_handler.poll()
+                    except Exception:
+                        pass
         except KeyboardInterrupt:
             pass
         finally:
             watcher.stop()
-            observer.stop()
-            observer.join()
+            if observer:
+                observer.stop()
+                observer.join()
             save_config(cfg)
 
     # Tray + options scheduling (Qt main thread)

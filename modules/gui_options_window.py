@@ -160,6 +160,16 @@ def create_and_show_options_window(cfg: Config, on_quit: Callable[[], None], on_
     open_cfg_btn.clicked.connect(_open_config_file)  # type: ignore
     advanced_layout.addWidget(open_cfg_btn)
     advanced_layout.addWidget(QtWidgets.QLabel('Configuration file opens in your default editor.'))
+
+    # Hot reload toggle (advanced, not recommended to disable)
+    hot_reload_checkbox = QtWidgets.QCheckBox('Enable hot reload (auto-restart on code changes)')
+    hot_reload_checkbox.setChecked(getattr(cfg, 'enable_hot_reload', True))
+    def _toggle_hot_reload(state):
+        cfg.enable_hot_reload = state == QtCore.Qt.CheckState.Checked
+        save_config(cfg)
+    hot_reload_checkbox.stateChanged.connect(_toggle_hot_reload)  # type: ignore
+    advanced_layout.addWidget(hot_reload_checkbox)
+    advanced_layout.addWidget(QtWidgets.QLabel('Disabling may require manual reload to pick up code changes. (Not recommended)'))
     inner_layout.addWidget(advanced_group)
 
     inner_layout.addStretch(1)
