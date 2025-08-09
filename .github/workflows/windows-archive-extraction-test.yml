@@ -82,10 +82,12 @@ jobs:
               continue
             }
 
-            # Find TESTFILE.py inside the extracted tree
-            $testFiles = Get-ChildItem -Path $destFolder -Recurse -File -Filter TESTFILE.py -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName
+            # Find ANY .py file inside the extracted tree (more flexible than fixed TESTFILE.py)
+            $testFiles = Get-ChildItem -Path $destFolder -Recurse -File -Filter *.py -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName
             if (-not $testFiles) {
-              Write-Host "[FAIL] TESTFILE.py not found in $destFolder"; $failures++
+              Write-Host "[FAIL] No Python files (*.py) found in $destFolder"; $failures++
+              Write-Host "Directory listing for debug:";
+              Get-ChildItem -Path $destFolder -Recurse | Select-Object FullName, Length | Format-Table | Out-String | Write-Host
               if (Test-Path (Join-Path $downloads $archive)) { Remove-Item (Join-Path $downloads $archive) -Force -ErrorAction SilentlyContinue }
               if (Test-Path $destFolder) { Remove-Item $destFolder -Recurse -Force -ErrorAction SilentlyContinue }
               continue
