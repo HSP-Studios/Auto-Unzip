@@ -1,12 +1,15 @@
 """
 auto-unzip.py
 -------------
-Entry point that wires together the modular components. Only orchestration lives here.
+Main Script for Auto-Unzip
 """
+
 import signal
 import sys
 import threading
 import os
+from watchdog.observers import Observer
+from watchdog.events import FileSystemEventHandler
 
 from modules.config_load_config import load_config
 from modules.config_save_config import save_config
@@ -16,6 +19,15 @@ from modules.workflow_process_archive import process_archive
 from modules.watcher_directory_watcher import DirectoryWatcher
 from modules.tray_tray_controller import TrayController
 
+
+
+class RestartHandler(FileSystemEventHandler):
+    def __init__(self):
+        super().__init__()
+    def on_modified(self, event):
+        if event.src_path.endswith('.py'):
+            print('[Auto-Unzip] Source changed, restarting...')
+            os.execv(sys.executable, [sys.executable] + sys.argv)
 
 def main():
     cfg = load_config()
@@ -31,6 +43,12 @@ def main():
     watcher = DirectoryWatcher(lambda: cfg.watch_folders, lambda p: process_archive(p, cfg), cfg.poll_interval_seconds)
     watcher.start()
 
+    # Watch for changes in source files and restart
+    event_handler = RestartHandler()
+    observer = Observer()
+    observer.schedule(event_handler, path=os.path.dirname(__file__), recursive=True)
+    observer.start()
+
     _install_signals(watcher)
     try:
         while True:
@@ -42,6 +60,8 @@ def main():
         pass
     finally:
         watcher.stop()
+        observer.stop()
+        observer.join()
         save_config(cfg)
 
 
