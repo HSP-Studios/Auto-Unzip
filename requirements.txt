@@ -1,3 +1,4 @@
 pystray
 Pillow
 py7zr
+rarfile

@@ -1,9 +1,16 @@
 # Auto-Unzip
 
+<<<<<<< HEAD
 Background Windows helper that automatically extracts new `.zip`, `.zipx`, and `.7z` files appearing in watched folders (Downloads by default), shows status in the console, and optionally deletes the original archive after successful extraction. Provides a tray icon (if `pystray` + `Pillow` installed) to list or add watched folders and quit.
 
 ## Features
 * Automatic discovery of new ZIP, ZIPX, and 7Z archives via lightweight polling
+=======
+Background Windows helper that automatically extracts new `.zip`, `.zipx`, `.7z`, and `.rar` files appearing in watched folders (Downloads by default), shows status in the console, and optionally deletes the original archive after successful extraction. Provides a tray icon (if `pystray` + `Pillow` installed) to list or add watched folders and quit.
+
+## Features
+* Automatic discovery of new ZIP, ZIPX, 7Z, and RAR archives via lightweight polling
+>>>>>>> feature/rar-support
 * Console notifications (startup, progress updates, completion/error)
 * System tray icon with minimal menu (optional if dependencies missing)
 * Modular, one-function-per-file design for clarity
@@ -24,9 +31,16 @@ modules/
   notifications_show_progress.py
   notifications_show_completion.py
   extract_zip.py
+<<<<<<< HEAD
   extract_zipx.py            # NEW: ZIPX extraction
   extract_7z.py              # 7z extraction
   extract_archive.py         # Dispatches to zip/zipx/7z
+=======
+  extract_zipx.py            # ZIPX extraction
+  extract_7z.py              # 7z extraction
+  extract_rar.py             # NEW: RAR extraction
+  extract_archive.py         # Dispatches to zip/zipx/7z/rar
+>>>>>>> feature/rar-support
   watcher_directory_watcher.py
   workflow_process_archive.py
   tray_tray_controller.py
@@ -43,11 +57,17 @@ py -m pip install --upgrade pip
 py -m pip install -r requirements.txt
 ```
 
+RAR support requires the `unrar` tool to be installed and available in your PATH.
+
 ## Run
 ```
 py .\auto-unzip.py
 ```
+<<<<<<< HEAD
 You should see a startup message in the console and a tray icon (if pystray + Pillow available). Drop a `.zip`, `.zipx`, or `.7z` into your Downloads folder; extraction will begin immediately into a folder named after the archive (without extension).
+=======
+You should see a startup message in the console and a tray icon (if pystray + Pillow available). Drop a `.zip`, `.zipx`, `.7z`, or `.rar` into your Downloads folder; extraction will begin immediately into a folder named after the archive (without extension).
+>>>>>>> feature/rar-support
 
 ## Adding Watch Folders
 Use the tray menu -> "Add Folder" and input a path, or edit `modules/settings.json` while the app is stopped and restart.
@@ -61,7 +81,7 @@ register_startup(__file__)
 Corresponding removal: `from modules.startup_unregister_startup import unregister_startup`.
 
 ## Extending Archive Support
-Add a new extractor (e.g., `extract_rar.py`) and update `extract_archive.py` to dispatch based on extension. Consider Python bindings for rar or other formats.
+Add a new extractor (e.g., `extract_tar_gz_bz2.py`) and update `extract_archive.py` to dispatch based on extension. Consider Python bindings for other formats.
 
 ## Configuration Fields
 * `watch_folders`: list of absolute paths
@@ -70,7 +90,11 @@ Add a new extractor (e.g., `extract_rar.py`) and update `extract_archive.py` to 
 
 ## Notes
 * Polling was chosen over filesystem events to minimize dependencies; swap in `watchdog` easily if desired.
+<<<<<<< HEAD
 * Progress for ZIP/ZIPX/7Z is approximate (based on file count for 7z, file sizes for zip/zipx).
+=======
+* Progress for ZIP/ZIPX/7Z/RAR is approximate (based on file count for 7z, file sizes for zip/zipx/rar).
+>>>>>>> feature/rar-support
 * Multiple rapid console prints approximate a progress bar.
 
 ## License
