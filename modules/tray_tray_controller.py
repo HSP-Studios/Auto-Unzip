@@ -8,6 +8,7 @@ GUI window. The GUI itself will offer controls and a Quit button.
 from __future__ import annotations
 import threading
 import queue
+import time
 from typing import Callable, Any, Optional
 
 try:
@@ -56,16 +57,15 @@ class TrayController:
             return
         image = self._create_image()
         self._icon = pystray.Icon('auto_unzip', image, 'Auto-Unzip', self._build_menu())
-        # Set click handler (left-click) if library supports
-        try:
-            self._icon.visible = True  # precreate
-            self._icon.run_detached()
-        except Exception:
-            # fallback to thread run
-            self._thread = threading.Thread(target=self._icon.run, daemon=True)
-            self._thread.start()
+        # Always run in dedicated thread to maintain lifetime
+        self._thread = threading.Thread(target=self._icon.run, daemon=True)
+        self._thread.start()
+        # Wait briefly for icon to appear
+        for _ in range(10):
+            if getattr(self._icon, 'visible', False):
+                break
+            time.sleep(0.1)
         self._running = True
-        # Start a pump thread to execute queued actions in main context
         t = threading.Thread(target=self._pump_actions, daemon=True)
         t.start()
 
