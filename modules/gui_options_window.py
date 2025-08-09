@@ -26,6 +26,16 @@ def create_and_show_options_window(cfg: Config, on_quit: Callable[[], None]):
         print('[Auto-Unzip] PyQt6 not installed. Install with pip install PyQt6.')
         return
 
+    # If window already exists just raise and focus it
+    if _window_ref is not None:
+        try:
+            _window_ref.show()
+            _window_ref.raise_()
+            _window_ref.activateWindow()
+        except Exception:
+            pass
+        return
+
     app = QtWidgets.QApplication.instance() or QtWidgets.QApplication(sys.argv)
 
     window = QtWidgets.QWidget()
