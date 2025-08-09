@@ -8,6 +8,7 @@ import json
 import os
 from .config_dataclass import Config
 from .config_settings_file_path import get_settings_file_path
+from .config_save_config import save_config
 
 def load_config() -> Config:
     path = get_settings_file_path()
@@ -17,5 +18,11 @@ def load_config() -> Config:
                 data = json.load(f)
             return Config(**data)
         except Exception:
-            return Config()
-    return Config()
+            # Corrupt file: overwrite with defaults
+            cfg = Config()
+            save_config(cfg)
+            return cfg
+    # First launch: create file with defaults
+    cfg = Config()
+    save_config(cfg)
+    return cfg
