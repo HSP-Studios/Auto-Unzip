@@ -10,6 +10,7 @@ import threading
 import os
 import time
 import json
+import subprocess
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 
@@ -34,10 +35,12 @@ class RestartHandler(FileSystemEventHandler):
     Ignores changes in temporary / runtime folders (e.g. __pycache__).
     On first qualifying change after the debounce window, re-execs the process.
     """
-    def __init__(self, project_root: str, min_interval: float = 1.5):
+    def __init__(self, project_root: str, min_interval: float = 1.5, initial_delay: float = 2.0):
         super().__init__()
         self.project_root = os.path.abspath(project_root)
         self.min_interval = min_interval
+        self.initial_delay = initial_delay
+        self._start_time = time.time()
         self._last_restart = 0.0
         self._pending = False
  
@@ -54,6 +57,9 @@ class RestartHandler(FileSystemEventHandler):
         try:
             changed = os.path.abspath(event.src_path)
         except Exception:
+            return
+        # Ignore early events right after startup to prevent immediate restart loop
+        if (time.time() - self._start_time) < self.initial_delay:
             return
         if not self._should_consider(changed):
             return
@@ -217,32 +223,18 @@ def _reload_app():
     except Exception:
         _graceful_exit()
 
-
+ 
 def _perform_exec_restart():
-    """Helper to exec the current interpreter with the original arguments.
+    """Spawn a fresh process running the same script then exit current one.
 
-    Uses sys.argv as-is (so the script path is preserved exactly as launched),
-    and ensures the working directory is the script's directory to avoid edge
-    cases where Python mis-resolves the script when paths contain spaces.
+    Avoids execv issues with .pyw + spaces on Windows. Keeps original arguments.
     """
     script_path = os.path.abspath(sys.argv[0])
-    script_dir = os.path.dirname(script_path)
+    args = [sys.executable, script_path] + sys.argv[1:]
     try:
-        os.chdir(script_dir)
-    except Exception:
-        pass
-    # Some Windows launches of .pyw can confuse re-exec with spaces; fall back to runpy.
-    # We'll exec: python -c "import runpy, sys; sys.argv=<orig_argv_repr>; runpy.run_path('<script_path>', run_name='__main__')"
-    import shlex
-    orig_argv = sys.argv[:]
-    # Build small launcher code
-    launcher = (
-        "import runpy, sys; "
-        f"sys.argv={orig_argv!r}; "
-        f"runpy.run_path(r'{script_path}', run_name='__main__')"
-    )
-    argv = [sys.executable, '-c', launcher]
-    os.execv(sys.executable, argv)
+        subprocess.Popen(args, cwd=os.path.dirname(script_path))
+    finally:
+        os._exit(0)
 
 
 def _install_signals(w: DirectoryWatcher):
