@@ -25,6 +25,11 @@ def integrate_qt_loop(run_fn: Callable[[], None]):
     app = QtWidgets.QApplication.instance()
     if app is None:
         app = QtWidgets.QApplication([])
+    try:
+        # Prevent closing last window from exiting background logic
+        app.setQuitOnLastWindowClosed(False)
+    except Exception:
+        pass
     t = threading.Thread(target=lambda: _run_wrapper(run_fn), daemon=True, name='AppLogicThread')
     t.start()
     app.exec()

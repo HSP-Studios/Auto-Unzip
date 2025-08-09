@@ -38,7 +38,13 @@ def create_and_show_options_window(cfg: Config, on_quit: Callable[[], None]):
 
     app = QtWidgets.QApplication.instance() or QtWidgets.QApplication(sys.argv)
 
-    window = QtWidgets.QWidget()
+    class OptionsWindow(QtWidgets.QWidget):
+        def closeEvent(self, event):  # type: ignore
+            # Just hide; do not quit app. User can reopen from tray.
+            self.hide()
+            event.ignore()
+
+    window = OptionsWindow()
     window.setWindowTitle('Auto-Unzip Options')
     window.setFixedSize(700, 500)
 

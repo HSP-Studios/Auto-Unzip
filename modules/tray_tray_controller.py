@@ -41,7 +41,17 @@ class TrayController:
     def _build_menu(self):  # pragma: no cover
         if not pystray:
             return None
-        return pystray.Menu(pystray.MenuItem('Options', self._open_options))
+        return pystray.Menu(
+            pystray.MenuItem('Options', self._open_options, default=True),
+            pystray.MenuItem('Quit', self._quit)
+        )
+
+    def _quit(self, icon=None, item=None):  # pragma: no cover
+        try:
+            import sys
+            sys.exit(0)
+        except Exception:
+            pass
 
     def _open_options(self, icon=None, item=None):  # pragma: no cover
         # open_options now enqueues UI work itself; just call it
