@@ -7,6 +7,8 @@ Advanced settings. Provides simple controls bound to the Config object.
 """
 from __future__ import annotations
 import sys
+import json
+import os
 from typing import Callable
 
 try:
@@ -164,8 +166,19 @@ def create_and_show_options_window(cfg: Config, on_quit: Callable[[], None], on_
     scroll.setWidget(inner)
     layout.addWidget(scroll)
 
-    # Bottom buttons
+    # Bottom bar with version (left) and action buttons (right)
     button_bar = QtWidgets.QHBoxLayout()
+    version_label = QtWidgets.QLabel()
+    def _load_version():
+        try:
+            root = os.path.dirname(os.path.dirname(__file__))
+            with open(os.path.join(root, 'version.json'), 'r', encoding='utf-8') as vf:
+                vdata = json.load(vf)
+            ver = vdata.get('version') or f"{vdata.get('major','?')}.{vdata.get('minor','?')}.{vdata.get('patch','?')}"
+        except Exception:
+            ver = 'unknown'
+        version_label.setText(f'Auto Unzip {ver}')
+    _load_version()
     quit_btn = QtWidgets.QPushButton('Quit')
     reload_btn = QtWidgets.QPushButton('Reload App')
     def _reload():
@@ -180,6 +193,7 @@ def create_and_show_options_window(cfg: Config, on_quit: Callable[[], None], on_
             on_quit()
             window.close()
     quit_btn.clicked.connect(_quit)  # type: ignore
+    button_bar.addWidget(version_label)
     button_bar.addStretch(1)
     button_bar.addWidget(reload_btn)
     button_bar.addWidget(quit_btn)
