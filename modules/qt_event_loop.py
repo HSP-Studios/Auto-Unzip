@@ -20,28 +20,18 @@ except Exception:  # pragma: no cover
 
 def integrate_qt_loop(run_fn: Callable[[], None]):
     if QtWidgets is None:
-        print('[Debug][qt_event_loop] PyQt6 not available; running function directly')
         run_fn()
         return
     app = QtWidgets.QApplication.instance()
     if app is None:
-        print('[Debug][qt_event_loop] Creating QApplication on thread', threading.current_thread().name)
         app = QtWidgets.QApplication([])
-    else:
-        print('[Debug][qt_event_loop] Reusing existing QApplication on thread', threading.current_thread().name)
-    print('[Debug][qt_event_loop] Spawning background thread for run_fn')
     t = threading.Thread(target=lambda: _run_wrapper(run_fn), daemon=True, name='AppLogicThread')
     t.start()
-    print('[Debug][qt_event_loop] Entering app.exec() on', threading.current_thread().name)
-    rc = app.exec()
-    print('[Debug][qt_event_loop] app.exec() exited with code', rc)
+    app.exec()
 
 
 def _run_wrapper(run_fn):  # pragma: no cover
     try:
-        print('[Debug][qt_event_loop] run_fn starting in thread', threading.current_thread().name)
         run_fn()
     except Exception as e:  # noqa
-        print('[Debug][qt_event_loop] run_fn exception:', e, file=sys.stderr)
-    finally:
-        print('[Debug][qt_event_loop] run_fn finished')
+        print('[Auto-Unzip] Background logic error:', e, file=sys.stderr)

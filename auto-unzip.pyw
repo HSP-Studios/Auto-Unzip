@@ -33,23 +33,18 @@ class RestartHandler(FileSystemEventHandler):
             os.execv(sys.executable, [sys.executable] + sys.argv)
 
 def main():
-    cfg_holder = {}
+    # Load config once on main thread so all components share the same instance
+    initial_cfg = load_config()
 
-    # Background logic that must NOT create Qt widgets
-    def app_logic():
-        print('[Debug] app_logic starting in thread', threading.current_thread().name)
-        cfg = load_config()
-        cfg_holder['cfg'] = cfg
-        print('[Debug] Config loaded; scheduling watcher. cfg id:', id(cfg))
+    def app_logic():  # background (non-Qt) logic
+        cfg = initial_cfg
         show_startup_toast()
         watcher = DirectoryWatcher(lambda: cfg.watch_folders, lambda p: process_archive(p, cfg), cfg.poll_interval_seconds)
         watcher.start()
-        print('[Debug] DirectoryWatcher started')
         event_handler = RestartHandler()
         observer = Observer()
         observer.schedule(event_handler, path=os.path.dirname(__file__), recursive=True)
         observer.start()
-        print('[Debug] Observer started; entering loop')
         _install_signals(watcher)
         try:
             while True:
@@ -57,54 +52,25 @@ def main():
         except KeyboardInterrupt:
             pass
         finally:
-            print('[Debug] app_logic shutting down')
             watcher.stop()
             observer.stop()
             observer.join()
             save_config(cfg)
 
-    # Defer Qt GUI related objects to main thread if Qt available
+    # Tray + options scheduling (Qt main thread)
     try:
         from PyQt6 import QtCore  # type: ignore
-        print('[Debug] Qt available; scheduling tray init on main thread')
-        cfg_ready_flag = threading.Event()
-        # Poll for config readiness from main thread without blocking event loop
-        def _mark_ready():
-            if 'cfg' in cfg_holder:
-                cfg_ready_flag.set()
-            else:
-                QtCore.QTimer.singleShot(50, _mark_ready)
-        QtCore.QTimer.singleShot(0, _mark_ready)
-
-        # Heartbeat to verify timers firing
-        def _heartbeat():
-            print('[Debug][Heartbeat] Qt main thread alive;', 'cfg_ready=' + str(cfg_ready_flag.is_set()), 'thread=' + threading.current_thread().name)
-            QtCore.QTimer.singleShot(1000, _heartbeat)
-        QtCore.QTimer.singleShot(1000, _heartbeat)
-
-        def init_tray():  # runs on Qt main thread
-            if not cfg_ready_flag.is_set():
-                # Reschedule until config loaded to avoid duplicate config objects
-                QtCore.QTimer.singleShot(50, init_tray)
-                return
-            print('[Debug] init_tray running on thread', threading.current_thread().name)
-            cfg = cfg_holder.get('cfg') or load_config()
-            print('[Debug] init_tray using cfg id:', id(cfg))
+        def init_tray():
+            cfg = initial_cfg
             def _open_options():
-                print('[Debug] _open_options invoked on', threading.current_thread().name)
                 create_and_show_options_window(cfg, _graceful_exit)
             tray = TrayController(open_options=_open_options)
             tray.start()
-            print('[Debug] TrayController started (visible may still be False initially)')
-            # Auto-open options for diagnostics after 2s
-            QtCore.QTimer.singleShot(2000, _open_options)
         QtCore.QTimer.singleShot(0, init_tray)
-    except Exception as e:
-        print('[Debug] Qt not available or tray scheduling failed:', e)
+    except Exception:
+        pass
 
-    print('[Debug] Calling integrate_qt_loop from thread', threading.current_thread().name)
     integrate_qt_loop(app_logic)
-    print('[Debug] integrate_qt_loop returned (Qt loop exited)')
 
 
 def _add_folder(path: str, cfg: Config):

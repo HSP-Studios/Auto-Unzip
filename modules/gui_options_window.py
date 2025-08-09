@@ -28,7 +28,6 @@ def create_and_show_options_window(cfg: Config, on_quit: Callable[[], None]):
 
     app = QtWidgets.QApplication.instance() or QtWidgets.QApplication(sys.argv)
 
-    print('[Debug][OptionsWindow] Creating window on thread', QtCore.QThread.currentThread())
     window = QtWidgets.QWidget()
     window.setWindowTitle('Auto-Unzip Options')
     window.setFixedSize(700, 500)
@@ -106,7 +105,6 @@ def create_and_show_options_window(cfg: Config, on_quit: Callable[[], None]):
     button_bar.addWidget(quit_btn)
     layout.addLayout(button_bar)
 
-    print('[Debug][OptionsWindow] Showing window...')
     window.show()
     window.raise_()
     window.activateWindow()
@@ -115,7 +113,5 @@ def create_and_show_options_window(cfg: Config, on_quit: Callable[[], None]):
         window.setWindowState(window.windowState() & ~QtCore.Qt.WindowState.WindowMinimized | QtCore.Qt.WindowState.WindowActive)
     except Exception:
         pass
-    print('[Debug][OptionsWindow] Shown options window; thread:', QtCore.QThread.currentThread(), 'visible=', window.isVisible())
     _window_ref = window
     app.processEvents()
-    print('[Debug][OptionsWindow] processEvents completed')
