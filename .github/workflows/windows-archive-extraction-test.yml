@@ -75,12 +75,21 @@ jobs:
               $elapsed += $interval
             }
             if (-not $extracted) {
-              Write-Host "[FAIL] Folder $base not created after $maxWait seconds"; $failures++; goto CleanupItem
+              Write-Host "[FAIL] Folder $base not created after $maxWait seconds"; $failures++
+              # Cleanup and continue to next archive
+              if (Test-Path (Join-Path $downloads $archive)) { Remove-Item (Join-Path $downloads $archive) -Force -ErrorAction SilentlyContinue }
+              if (Test-Path $destFolder) { Remove-Item $destFolder -Recurse -Force -ErrorAction SilentlyContinue }
+              continue
             }
 
             # Find TESTFILE.py inside the extracted tree
             $testFiles = Get-ChildItem -Path $destFolder -Recurse -File -Filter TESTFILE.py -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName
-            if (-not $testFiles) { Write-Host "[FAIL] TESTFILE.py not found in $destFolder"; $failures++; goto CleanupItem }
+            if (-not $testFiles) {
+              Write-Host "[FAIL] TESTFILE.py not found in $destFolder"; $failures++
+              if (Test-Path (Join-Path $downloads $archive)) { Remove-Item (Join-Path $downloads $archive) -Force -ErrorAction SilentlyContinue }
+              if (Test-Path $destFolder) { Remove-Item $destFolder -Recurse -Force -ErrorAction SilentlyContinue }
+              continue
+            }
 
             $allGood = $true
             foreach ($tf in $testFiles) {
@@ -90,7 +99,6 @@ jobs:
             }
             if (-not $allGood) { $failures++ } else { Write-Host "[OK] $archive extracted and script output correct." }
 
-            :CleanupItem
             # Remove archive + extracted folder for isolation
             if (Test-Path (Join-Path $downloads $archive)) { Remove-Item (Join-Path $downloads $archive) -Force -ErrorAction SilentlyContinue }
             if (Test-Path $destFolder) { Remove-Item $destFolder -Recurse -Force -ErrorAction SilentlyContinue }
