@@ -66,8 +66,6 @@ def main():
                 create_and_show_options_window(cfg, _graceful_exit)
             tray = TrayController(open_options=_open_options)
             tray.start()
-            # Auto-show window first time to confirm UI availability; remove if undesired
-            QtCore.QTimer.singleShot(500, _open_options)
         QtCore.QTimer.singleShot(0, init_tray)
     except Exception:
         pass
