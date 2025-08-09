@@ -10,7 +10,7 @@ on:
 jobs:
   test-extraction:
     runs-on: windows-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -29,66 +29,82 @@ jobs:
         shell: pwsh
         run: |
           Start-Process -FilePath python -ArgumentList 'auto-unzip.pyw' -WindowStyle Hidden
-          Start-Sleep -Seconds 3
+          Start-Sleep -Seconds 5
 
-      - name: Prepare test workspace
+      - name: Sequential archive tests (copy -> wait -> verify -> cleanup)
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path testing_out | Out-Null
-          $TestFiles = @(
-            'test-zip.zip',
-            'test-7zip.7z',
-            'test-rar.rar',
-            'test-tar.tar',
-            'test-gzip.gz',
-            'test-bz2.bz2',
-            'test-cabinet.cab'
+          $downloads = Join-Path $Env:USERPROFILE 'Downloads'
+          Write-Host "Using simulated Downloads folder: $downloads"
+
+          $tests = @(
+            @{ file='test-zip.zip';      type='zip' },
+            @{ file='test-7zip.7z';      type='7z'  },
+            @{ file='test-rar.rar';      type='rar' },
+            @{ file='test-tar.tar';      type='tar' },
+            @{ file='test-gzip.gz';      type='gzip'},
+            @{ file='test-bz2.bz2';      type='bz2' },
+            @{ file='test-cabinet.cab';  type='cab' }
           )
-          foreach ($f in $TestFiles) { Copy-Item "testing/$f" testing_out/ }
-          Write-Host 'Copied test archives into testing_out'
 
-      - name: Wait for extraction
-        shell: pwsh
-        run: Start-Sleep -Seconds 15
+          $failures = 0
+          foreach ($t in $tests) {
+            $archive = $t.file
+            $base = [System.IO.Path]::GetFileNameWithoutExtension($archive)
+            # Handle double extension cases (e.g., .tar.gz) by trimming twice when needed
+            if ($archive -match '\.tar\.(gz|bz2)$') { $base = $archive -replace '\.(tar\.(gz|bz2))$','-tar' } # simplistic base naming
 
-      - name: Verify extracted contents
-        shell: pwsh
-        run: |
-          $errors = 0
-          $expected = 'hello world'
-          function Test-FileContent($Path) {
-            if (Test-Path $Path) {
-              $content = (Get-Content -Raw -ErrorAction SilentlyContinue $Path).Trim()
-              if ($content -eq $expected) { return $true } else { return $false }
+            Write-Host "--- Testing $archive (expected folder: $base) ---"
+            $src = Join-Path 'testing' $archive
+            if (-not (Test-Path $src)) { Write-Host "Source $src missing"; $failures++; continue }
+
+            # Pre-clean
+            $destFolder = Join-Path $downloads $base
+            if (Test-Path (Join-Path $downloads $archive)) { Remove-Item (Join-Path $downloads $archive) -Force -ErrorAction SilentlyContinue }
+            if (Test-Path $destFolder) { Remove-Item $destFolder -Recurse -Force -ErrorAction SilentlyContinue }
+
+            Copy-Item $src (Join-Path $downloads $archive)
+            Write-Host "Copied archive to Downloads. Waiting for extraction..."
+            $maxWait = 30
+            $elapsed = 0
+            $interval = 2
+            $extracted = $false
+            while ($elapsed -lt $maxWait) {
+              if (Test-Path $destFolder) { $extracted = $true; break }
+              Start-Sleep -Seconds $interval
+              $elapsed += $interval
             }
-            return $false
-          }
-
-          # Recursively find all files named TESTFILE.py inside testing_out extraction results
-          $extracted = Get-ChildItem -Path testing_out -Recurse -File -Filter TESTFILE.py | Select-Object -ExpandProperty FullName
-          if (-not $extracted) {
-            Write-Host 'No extracted TESTFILE.py files found.'
-            $errors++
-          } else {
-            foreach ($file in $extracted) {
-              if (Test-FileContent $file) {
-                Write-Host "[OK] $file contains expected text"
-              } else {
-                Write-Host "[FAIL] $file missing or incorrect content"; $errors++
-              }
+            if (-not $extracted) {
+              Write-Host "[FAIL] Folder $base not created after $maxWait seconds"; $failures++; goto CleanupItem
             }
+
+            # Find TESTFILE.py inside the extracted tree
+            $testFiles = Get-ChildItem -Path $destFolder -Recurse -File -Filter TESTFILE.py -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName
+            if (-not $testFiles) { Write-Host "[FAIL] TESTFILE.py not found in $destFolder"; $failures++; goto CleanupItem }
+
+            $allGood = $true
+            foreach ($tf in $testFiles) {
+              Write-Host "Running $tf ..."
+              $out = (python $tf).Trim()
+              if ($out -ne 'Test Successful!') { Write-Host "[FAIL] Output mismatch from $tf -> '$out'"; $allGood = $false }
+            }
+            if (-not $allGood) { $failures++ } else { Write-Host "[OK] $archive extracted and script output correct." }
+
+            :CleanupItem
+            # Remove archive + extracted folder for isolation
+            if (Test-Path (Join-Path $downloads $archive)) { Remove-Item (Join-Path $downloads $archive) -Force -ErrorAction SilentlyContinue }
+            if (Test-Path $destFolder) { Remove-Item $destFolder -Recurse -Force -ErrorAction SilentlyContinue }
           }
 
-          if ($errors -gt 0) {
-            Write-Error "$errors archive extraction validations failed."; exit 1
+          if ($failures -gt 0) {
+            Write-Error "$failures archive tests failed"; exit 1
           } else {
-            Write-Host 'All archive formats extracted successfully.'
+            Write-Host 'All archive formats passed sequential extraction tests.'
           }
 
-      - name: Cleanup (list outputs)
+      - name: Post-test diagnostics (always)
         if: always()
         shell: pwsh
         run: |
-          Write-Host 'Directory tree after test:'
-          Get-ChildItem -Path testing_out -Recurse | Format-List -Property FullName,Length
+          Get-Process | Where-Object { $_.ProcessName -like '*python*' } | Select-Object ProcessName,Id | Format-Table
 
