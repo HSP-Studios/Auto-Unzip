@@ -9,6 +9,9 @@ import sys
 import threading
 import os
 import time
+import json
+import subprocess
+from typing import List
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 
@@ -27,29 +30,85 @@ from modules.qt_event_loop import integrate_qt_loop
 
 
 class RestartHandler(FileSystemEventHandler):
-    def __init__(self, script_path: str, min_interval: float = 2.0):
-        super().__init__()
-        self.script_path = os.path.abspath(script_path)
-        self.min_interval = min_interval
-        self._last_restart = 0.0
+    """Debounced project file change restarter.
 
-    def on_modified(self, event):
+    Watches for modifications to .py / .pyw files under the project root.
+    Ignores changes in temporary / runtime folders (e.g. __pycache__).
+    On first qualifying change after the debounce window, re-execs the process.
+    """
+    def __init__(self, project_root: str, min_interval: float = 1.5, initial_delay: float = 2.0):
+        super().__init__()
+        self.project_root = os.path.abspath(project_root)
+        self.min_interval = min_interval
+        self.initial_delay = initial_delay
+        self._start_time = time.time()
+        self._last_restart = 0.0
+        self._pending = False
+ 
+    def _should_consider(self, path: str) -> bool:
+        if not path.endswith(('.py', '.pyw')):
+            return False
+        # ignore __pycache__ or hidden
+        parts = path.lower().split(os.sep)
+        if '__pycache__' in parts:
+            return False
+        return True
+
+    def on_modified(self, event):  # pragma: no cover
         try:
             changed = os.path.abspath(event.src_path)
         except Exception:
             return
-        # Only act if the main script file itself changed
-        if os.path.normcase(changed) != os.path.normcase(self.script_path):
+        # Ignore early events right after startup to prevent immediate restart loop
+        if (time.time() - self._start_time) < self.initial_delay:
+            return
+        if not self._should_consider(changed):
             return
         now = time.time()
         if now - self._last_restart < self.min_interval:
+            # debounce; mark pending but do not restart yet
+            self._pending = True
             return
-        self._last_restart = now
+        self._trigger_restart(changed)
+
+    def _trigger_restart(self, changed: str):
+        self._last_restart = time.time()
+        self._pending = False
         print(f'[Auto-Unzip] Source changed ({changed}), restarting...')
-        script = self.script_path
-        os.execv(sys.executable, [sys.executable, script] + sys.argv[1:])
+        try:
+            _perform_exec_restart()
+        except Exception as e:
+            print(f'[Auto-Unzip] Restart failed: {e}')
+
+    def poll(self):  # periodic check if a pending restart can now occur
+        if self._pending and (time.time() - self._last_restart) >= self.min_interval:
+            self._trigger_restart('pending-change')
 
 def main():
+    # Basic CLI handling (keep lightweight to avoid argparse dependency)
+    argv_lower = [a.lower() for a in sys.argv[1:]]
+    if ('-h' in argv_lower) or ('--help' in argv_lower):
+        print("Auto-Unzip - automatic extraction service")
+        print("Usage: python auto-unzip.pyw [options]")
+        print()
+        print("Options:")
+        print("  -h, --help       Show this help and exit")
+        print("  -v, --version    Show version and exit")
+        print()
+        print("The application has no runtime CLI options; configuration is managed via")
+        print("the Options window (tray icon) and the config/settings.json file.")
+        return
+    if ('-v' in argv_lower) or ('--version' in argv_lower):
+        try:
+            with open(os.path.join(os.path.dirname(__file__), 'version.json'), 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            print(f"Auto-Unzip version {data.get('version', 'unknown')}")
+        except Exception:
+            print("Auto-Unzip version unknown (version.json unreadable)")
+        return
+
+    _enforce_single_instance()
+
     # Load config once on main thread so all components share the same instance
     initial_cfg = load_config()
     first_launch = getattr(initial_cfg, '_was_new', False)
@@ -60,20 +119,30 @@ def main():
         show_startup_toast()
         watcher = DirectoryWatcher(lambda: cfg.watch_folders, lambda p: process_archive(p, cfg), cfg.poll_interval_seconds)
         watcher.start()
-        event_handler = RestartHandler(script_path=sys.argv[0])
-        observer = Observer()
-        observer.schedule(event_handler, path=os.path.dirname(__file__), recursive=True)
-        observer.start()
+        project_root = os.path.dirname(os.path.abspath(__file__))
+        event_handler = None
+        observer = None
+        if getattr(cfg, 'enable_hot_reload', True):
+            event_handler = RestartHandler(project_root=project_root)
+            observer = Observer()
+            observer.schedule(event_handler, path=project_root, recursive=True)
+            observer.start()
         _install_signals(watcher)
         try:
             while True:
                 time.sleep(0.5)
+                if event_handler:
+                    try:
+                        event_handler.poll()
+                    except Exception:
+                        pass
         except KeyboardInterrupt:
             pass
         finally:
             watcher.stop()
-            observer.stop()
-            observer.join()
+            if observer:
+                observer.stop()
+                observer.join()
             save_config(cfg)
 
     # Tray + options scheduling (Qt main thread)
@@ -158,10 +227,81 @@ def _reload_app():
     what RestartHandler does on file change.
     """
     try:
-        script = os.path.abspath(sys.argv[0])
-        os.execv(sys.executable, [sys.executable, script] + sys.argv[1:])
+        _perform_exec_restart()
     except Exception:
         _graceful_exit()
+
+
+def _perform_exec_restart():
+    """Spawn a fresh process running the same script then exit current one.
+
+    Avoids execv issues with .pyw + spaces on Windows. Keeps original arguments.
+    """
+    script_path = os.path.abspath(sys.argv[0])
+    # Make sure we clean up tray & write our pid so new instance can kill us if still alive
+    _write_pid_file()  # refresh our pid timestamp
+    args = [sys.executable, script_path] + sys.argv[1:]
+    try:
+        subprocess.Popen(args, cwd=os.path.dirname(script_path))
+    finally:
+        os._exit(0)
+
+
+PID_FILE = os.path.join(os.path.dirname(__file__), 'config', 'auto_unzip.pid')
+
+def _read_pid_file() -> List[int]:
+    try:
+        with open(PID_FILE, 'r', encoding='utf-8') as f:
+            content = f.read().strip()
+        if not content:
+            return []
+        return [int(p) for p in content.split(',') if p.strip().isdigit()]
+    except Exception:
+        return []
+
+def _write_pid_file(pids: List[int] | None = None):
+    try:
+        os.makedirs(os.path.dirname(PID_FILE), exist_ok=True)
+        if pids is None:
+            pids = [os.getpid()]
+        with open(PID_FILE, 'w', encoding='utf-8') as f:
+            f.write(','.join(str(p) for p in pids))
+    except Exception:
+        pass
+
+def _kill_pid(pid: int):  # best-effort
+    if pid == os.getpid():
+        return
+    try:
+        # Test if alive
+        os.kill(pid, 0)
+    except Exception:
+        return  # not alive
+    try:
+        os.kill(pid, signal.SIGTERM)
+    except Exception:
+        pass
+    # Give brief time then force if still alive
+    time.sleep(0.2)
+    try:
+        os.kill(pid, 0)
+        # still alive -> force taskkill on Windows
+        if os.name == 'nt':
+            subprocess.run(['taskkill', '/PID', str(pid), '/F'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except Exception:
+        pass
+
+def _enforce_single_instance():
+    """Ensure only one active instance; kill stale/other pids listed in pid file."""
+    existing = _read_pid_file()
+    current = os.getpid()
+    remaining: List[int] = []
+    for pid in existing:
+        if pid == current:
+            continue
+        _kill_pid(pid)
+    remaining.append(current)
+    _write_pid_file(remaining)
 
 
 def _install_signals(w: DirectoryWatcher):
