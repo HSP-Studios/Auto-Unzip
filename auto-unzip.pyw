@@ -62,6 +62,9 @@ class RestartHandler(FileSystemEventHandler):
         parts = path.lower().split(os.sep)
         if '__pycache__' in parts:
             return False
+        # Exclude any file inside the 'testing' folder
+        if 'testing' in parts:
+            return False
         return True
 
     def on_modified(self, event):  # pragma: no cover
