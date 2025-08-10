@@ -39,6 +39,7 @@ def load_config() -> Config:
             return cfg
     # First launch: create file with defaults and mark
     cfg = Config()
+    cfg.development = False  # Ensure default is False on first launch
     save_config(cfg)
     setattr(cfg, '_was_new', True)
     return cfg
