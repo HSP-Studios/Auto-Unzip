@@ -27,6 +27,15 @@ import queue
 from modules.gui_options_window import create_and_show_options_window
 from modules.qt_event_loop import integrate_qt_loop
 from modules.add_folder import add_folder
+from modules.graceful_exit import graceful_exit
+from modules.confirmed_graceful_exit import confirmed_graceful_exit
+from modules.reload_app import reload_app
+from modules.perform_exec_restart import perform_exec_restart
+from modules.read_pid_file import read_pid_file
+from modules.write_pid_file import write_pid_file
+from modules.kill_pid import kill_pid
+from modules.enforce_single_instance import enforce_single_instance
+from modules.install_signals import install_signals
 
 
 
@@ -77,7 +86,7 @@ class RestartHandler(FileSystemEventHandler):
         self._pending = False
         print(f'[Auto-Unzip] Source changed ({changed}), restarting...')
         try:
-            _perform_exec_restart()
+            perform_exec_restart()
         except Exception as e:
             print(f'[Auto-Unzip] Restart failed: {e}')
 
@@ -108,7 +117,7 @@ def main():
             print("Auto-Unzip version unknown (version.json unreadable)")
         return
 
-    _enforce_single_instance()
+    enforce_single_instance()
 
     # Load config once on main thread so all components share the same instance
     initial_cfg = load_config()
@@ -128,7 +137,7 @@ def main():
             observer = Observer()
             observer.schedule(event_handler, path=project_root, recursive=True)
             observer.start()
-        _install_signals(watcher)
+        install_signals(watcher)
         try:
             while True:
                 time.sleep(0.5)
@@ -167,7 +176,7 @@ def main():
         def init_tray():
             cfg = initial_cfg
             def _open_options():
-                ui_queue.put(lambda: create_and_show_options_window(cfg, _confirmed_graceful_exit, _reload_app))
+                ui_queue.put(lambda: create_and_show_options_window(cfg, confirmed_graceful_exit, reload_app))
             def _request_quit():
                 # Must run on UI thread: enqueue dialog creation
                 ui_queue.put(_confirm_and_quit)
@@ -180,9 +189,9 @@ def main():
                                                      QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No,
                                                      QtWidgets.QMessageBox.StandardButton.No)
                 if res == QtWidgets.QMessageBox.StandardButton.Yes:
-                    _graceful_exit()
+                    graceful_exit()
             except Exception:
-                _graceful_exit()
+                graceful_exit()
         QtCore.QTimer.singleShot(0, _process_ui_queue)
         QtCore.QTimer.singleShot(0, init_tray)
         if first_launch:
@@ -209,107 +218,6 @@ def main():
 
 
 
-def _graceful_exit():
-    sys.exit(0)
-
-def _confirmed_graceful_exit():
-    # Wrapper used by options window (which already spawns its own confirmation) to keep API consistent
-    _graceful_exit()
-
-def _reload_app():
-    """Reload the entire application process cleanly.
-
-    Re-execs the current Python interpreter with original argv, similar to
-    what RestartHandler does on file change.
-    """
-    try:
-        _perform_exec_restart()
-    except Exception:
-        _graceful_exit()
-
-
-def _perform_exec_restart():
-    """Spawn a fresh process running the same script then exit current one.
-
-    Avoids execv issues with .pyw + spaces on Windows. Keeps original arguments.
-    """
-    script_path = os.path.abspath(sys.argv[0])
-    # Make sure we clean up tray & write our pid so new instance can kill us if still alive
-    _write_pid_file()  # refresh our pid timestamp
-    args = [sys.executable, script_path] + sys.argv[1:]
-    try:
-        subprocess.Popen(args, cwd=os.path.dirname(script_path))
-    finally:
-        os._exit(0)
-
-
-PID_FILE = os.path.join(os.path.dirname(__file__), 'config', 'auto_unzip.pid')
-
-def _read_pid_file() -> List[int]:
-    try:
-        with open(PID_FILE, 'r', encoding='utf-8') as f:
-            content = f.read().strip()
-        if not content:
-            return []
-        return [int(p) for p in content.split(',') if p.strip().isdigit()]
-    except Exception:
-        return []
-
-def _write_pid_file(pids: List[int] | None = None):
-    try:
-        os.makedirs(os.path.dirname(PID_FILE), exist_ok=True)
-        if pids is None:
-            pids = [os.getpid()]
-        with open(PID_FILE, 'w', encoding='utf-8') as f:
-            f.write(','.join(str(p) for p in pids))
-    except Exception:
-        pass
-
-def _kill_pid(pid: int):  # best-effort
-    if pid == os.getpid():
-        return
-    try:
-        # Test if alive
-        os.kill(pid, 0)
-    except Exception:
-        return  # not alive
-    try:
-        os.kill(pid, signal.SIGTERM)
-    except Exception:
-        pass
-    # Give brief time then force if still alive
-    time.sleep(0.2)
-    try:
-        os.kill(pid, 0)
-        # still alive -> force taskkill on Windows
-        if os.name == 'nt':
-            subprocess.run(['taskkill', '/PID', str(pid), '/F'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    except Exception:
-        pass
-
-def _enforce_single_instance():
-    """Ensure only one active instance; kill stale/other pids listed in pid file."""
-    existing = _read_pid_file()
-    current = os.getpid()
-    remaining: List[int] = []
-    for pid in existing:
-        if pid == current:
-            continue
-        _kill_pid(pid)
-    remaining.append(current)
-    _write_pid_file(remaining)
-
-
-def _install_signals(w: DirectoryWatcher):
-    def handler(signum, frame):  # noqa: unused
-        w.stop()
-        sys.exit(0)
-    for s in ('SIGINT', 'SIGTERM'):
-        if hasattr(signal, s):
-            try:
-                signal.signal(getattr(signal, s), handler)
-            except Exception:
-                pass
 
 
 if __name__ == '__main__':
