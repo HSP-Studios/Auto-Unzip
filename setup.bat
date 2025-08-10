@@ -24,4 +24,3 @@ if exist dependencies\unrarw64.exe (
 
 REM Setup complete
 echo Setup complete. You can now run Auto-Unzip.
-pause
