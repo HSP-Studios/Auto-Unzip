@@ -16,3 +16,4 @@ class Config:
     delete_archives_after_extract: bool = True
     enable_hot_reload: bool = True  # allow disabling automatic code reloads
     development: bool = False  # enables development mode features like hot reload toggle
+    launch_on_startup: bool = True  # launch app on Windows startup by default

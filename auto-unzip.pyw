@@ -125,6 +125,15 @@ def main():
     # Load config once on main thread so all components share the same instance
     initial_cfg = load_config()
     first_launch = getattr(initial_cfg, '_was_new', False)
+    if first_launch:
+        try:
+            from modules.startup_shortcut import create_startup_shortcut, remove_startup_shortcut
+            if getattr(initial_cfg, 'launch_on_startup', True):
+                create_startup_shortcut()
+            else:
+                remove_startup_shortcut()
+        except Exception as e:
+            print(f'[Auto-Unzip] Could not update startup shortcut: {e}')
 
     def app_logic():  # background (non-Qt) logic
         cfg = initial_cfg

@@ -31,6 +31,8 @@ def load_config() -> Config:
                 data['enable_hot_reload'] = True
             if 'development' not in data:
                 data['development'] = False
+            if 'launch_on_startup' not in data:
+                data['launch_on_startup'] = True
             return Config(**data)
         except Exception:
             cfg = Config()
@@ -40,6 +42,7 @@ def load_config() -> Config:
     # First launch: create file with defaults and mark
     cfg = Config()
     cfg.development = False  # Ensure default is False on first launch
+    cfg.launch_on_startup = True  # Ensure default is True on first launch
     save_config(cfg)
     setattr(cfg, '_was_new', True)
     return cfg

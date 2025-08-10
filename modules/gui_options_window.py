@@ -62,6 +62,24 @@ def create_and_show_options_window(cfg: Config, on_quit: Callable[[], None], on_
     general_group = QtWidgets.QGroupBox('General')
     general_layout = QtWidgets.QFormLayout(general_group)
 
+    # Launch on Startup checkbox
+    launch_checkbox = QtWidgets.QCheckBox('Launch Auto-Unzip on Windows startup')
+    launch_checkbox.setChecked(getattr(cfg, 'launch_on_startup', True))
+    def _toggle_launch_on_startup(state):
+        checked = state == QtCore.Qt.CheckState.Checked
+        cfg.launch_on_startup = checked
+        save_config(cfg)
+        try:
+            from modules.startup_shortcut import create_startup_shortcut, remove_startup_shortcut
+            if checked:
+                create_startup_shortcut()
+            else:
+                remove_startup_shortcut()
+        except Exception as e:
+            print(f'[Auto-Unzip] Could not update startup shortcut: {e}')
+    launch_checkbox.stateChanged.connect(_toggle_launch_on_startup)  # type: ignore
+    general_layout.addRow(launch_checkbox)
+
     delete_checkbox = QtWidgets.QCheckBox('Delete archives after extraction')
     delete_checkbox.setChecked(cfg.delete_archives_after_extract)
     def _toggle_delete(state):

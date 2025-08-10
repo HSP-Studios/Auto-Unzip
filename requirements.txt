@@ -5,3 +5,5 @@ py7zr
 rarfile
 watchdog
 winotify
+winshell
+pywin32
