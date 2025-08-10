@@ -6,3 +6,5 @@ GENERAL DEVELOPMENT RULES:
 - any dependencies that are added should be documented in the requirements.txt file
 - any dependencies that are added should be checked 
 - WHEN USING GIT MERGE, USE THE -M SWITCH FOR THE COMMIT MESSAGE. YOU MUST INCLUDE -m WITH A COMMIT MESSAGE FOLLOWING
+- when naming branches, use either "fix/[name]" or "feature/[name]" or "debug/[name]"
+- when naming commits, use either "fix: [description]" or "feature: [description]" or "debug: [description]" or "refactor: [description]"
