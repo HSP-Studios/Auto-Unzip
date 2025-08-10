@@ -29,6 +29,8 @@ def load_config() -> Config:
             data = _normalize_loaded_data(data)
             if 'enable_hot_reload' not in data:
                 data['enable_hot_reload'] = True
+            if 'development' not in data:
+                data['development'] = False
             return Config(**data)
         except Exception:
             cfg = Config()

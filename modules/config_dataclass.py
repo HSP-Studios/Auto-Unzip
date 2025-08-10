@@ -15,3 +15,4 @@ class Config:
     poll_interval_seconds: float = 2.0
     delete_archives_after_extract: bool = True
     enable_hot_reload: bool = True  # allow disabling automatic code reloads
+    development: bool = False  # enables development mode features like hot reload toggle
