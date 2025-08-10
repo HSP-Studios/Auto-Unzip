@@ -1,1 +1,3 @@
-* linguist-detectable
+*.json linguist-detectable
+*.md linguist-detectable
+*.exe linguist-detectable
