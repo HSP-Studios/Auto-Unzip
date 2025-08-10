@@ -26,6 +26,7 @@ from modules.tray_tray_controller import TrayController
 import queue
 from modules.gui_options_window import create_and_show_options_window
 from modules.qt_event_loop import integrate_qt_loop
+from modules.add_folder import add_folder
 
 
 
@@ -206,11 +207,6 @@ def main():
     integrate_qt_loop(app_logic)
 
 
-def _add_folder(path: str, cfg: Config):
-    full = os.path.abspath(path)
-    if full not in cfg.watch_folders and os.path.isdir(full):
-        cfg.watch_folders.append(full)
-        save_config(cfg)
 
 
 def _graceful_exit():
